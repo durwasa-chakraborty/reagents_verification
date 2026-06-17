@@ -1,0 +1,12 @@
+# --- Whitelist .gitignore: track ONLY .tex files ---
+# Ignore everything by default...
+*
+
+# ...but let git descend into subdirectories so the rule below can match
+!*/
+
+# Keep this file itself
+!.gitignore
+
+# Keep LaTeX source (anywhere in the tree)
+!*.tex

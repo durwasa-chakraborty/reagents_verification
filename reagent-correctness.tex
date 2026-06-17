@@ -1,40 +1,135 @@
 \documentclass[11pt]{article}
 
 \usepackage[margin=1in]{geometry}
-\usepackage{amsmath, amssymb, amsthm}
-\usepackage{stmaryrd}    % \llbracket, \rrbracket
-\usepackage{mathpartir}  % inference rules
-\usepackage{hyperref}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{stmaryrd}      % \llbracket, \rrbracket
+\usepackage{mathpartir}    % \inferrule for SOS rules
+\usepackage{listings}
 \usepackage{xcolor}
-\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
 
-\newtheorem{definition}{Definition}
-\newtheorem{proposition}{Proposition}
-\newtheorem{remark}{Remark}
-\newtheorem{example}{Example}
+%% ---- notation ----
+\newcommand{\Loc}{\mathit{Loc}}
+\newcommand{\Var}{\mathit{Var}}
+\newcommand{\Val}{\mathit{Val}}
+\newcommand{\Tid}{\mathit{Tid}}
+\newcommand{\Cmd}{\mathit{Cmd}}
+\newcommand{\Expr}{\mathit{Expr}}
+\newcommand{\store}{\sigma}
+\renewcommand{\log}{\lambda}
+\newcommand{\reduces}{\longrightarrow}
+\newcommand{\tred}{\mathrel{\longrightarrow_{t}}}
+\newcommand{\unit}{()}
+\newcommand{\bbegin}{\textsf{begin}}
+\newcommand{\eend}{\textsf{end}}
+\newcommand{\retry}{\textsf{retry}}
+\newcommand{\fork}{\textsf{fork}}
+\newcommand{\getc}[1]{\textsf{get}\;#1}
+\newcommand{\setc}[2]{\textsf{set}\,(#1,#2)}
+\newcommand{\nin}{\bot}                 % "no transaction" marker
+\newcommand{\subst}[3]{#1[#2\mapsto #3]}
+\newcommand{\rulename}[1]{\textsc{\small #1}}
 
-\newcommand{\sem}[1]{\llbracket #1 \rrbracket}
-\newcommand{\state}{\Sigma}
-\newcommand{\reagent}[2]{\mathsf{Reagent}(#1, #2)}
-\newcommand{\run}[2]{\mathsf{run}(#1, #2)}
-\newcommand{\abortt}{\!\Uparrow\!}         % abort marker
-\newcommand{\committ}{\!\Downarrow\!}      % commit marker
-\newcommand{\sq}{\mathbin{\texttt{>{>}}}}
-\newcommand{\choice}{\mathbin{+}}
+%% ---- listings style for the Reagent language ----
+\definecolor{kw}{rgb}{0.10,0.10,0.55}
+\definecolor{cm}{rgb}{0.30,0.45,0.30}
+\lstdefinelanguage{reagent}{
+  keywords={let,in,get,set,begin,end,retry,if,then,else},
+  sensitive=true,
+  morecomment=[l]{//},
+  morecomment=[n]{(*}{*)},
+  morestring=[b]",
+}
+\lstset{
+  language=reagent,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{kw}\bfseries,
+  commentstyle=\color{cm}\itshape,
+  showstringspaces=false,
+  columns=fullflexible,
+  frame=single,
+  framesep=4pt,
+  xleftmargin=4pt,
+}
+\newcommand{\code}[1]{\lstinline[basicstyle=\ttfamily]{#1}}
 
-\title{Working Notes Title Undecided}
-\author{Working note -  seeds for meeting with Prof. KC | Prof. Kartik Prof | Dr. Vimala S.}
+\title{\textbf{The Reagent Language}\\[2pt]
+\large A small transactional concurrent language:\\
+design, parser, and operational semantics}
+\author{reagents\_proof}
 \date{\today}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-
+TODO
 \end{abstract}
 
-%-----------------------------------------------------------------------------
-\section{Introduction}
+
+
+
+\section{Abstract syntax}
+
+\[
+\begin{array}{rcll}
+n     & \in & \mathbb{N}        & \text{natural-number literals}\\
+l     & \in & \Loc              & \text{shared mutable locations}\\
+x     & \in & \Var              & \text{immutable, let-bound variables}\\[4pt]
+v     & ::= & n \mid \unit \mid \textsf{true} \mid \textsf{false} & \text{values (naturals, unit, booleans)}\\[4pt]
+c     & ::= & \getc{l}          & \text{read a shared location}\\
+      & \mid & \setc{l}{e}      & \text{write a shared location}\\
+      & \mid & \bbegin          & \text{open a transaction}\\
+      & \mid & \eend            & \text{commit the current transaction}\\
+      & \mid & \retry           & \text{abort and restart the transaction}\\[4pt]
+e     & ::= & v \mid x          & \text{values, variables}\\
+      & \mid & e_1 + e_2        & \text{addition (the whiteboard's }\oplus\text{)}\\
+      & \mid & e_1 == e_2 \mid e_1\;\texttt{!=}\;e_2 & \text{comparison (naturals $\to$ boolean)}\\
+      & \mid & \textsf{let}\;x = e_1\;\textsf{in}\;e_2 & \text{binding}\\
+      & \mid & c                & \text{a command}\\
+      & \mid & \textsf{if}\;e\;\textsf{then}\;e\;\textsf{else}\;e & \text{conditional}\\
+      & \mid & e_1 \,;\, e_2    & \text{sequencing}\\
+\end{array}
+\]
+
+
+
+\subsection{Concrete syntax, precedence, and lexical conventions}
+\label{sec:concrete}
+
+Keywords are \code{let in get set begin end retry if then else true false}.
+
+%% =====================================================================
+\section{Operational semantics}
+\label{sec:sem}
+
+
+\paragraph{Store and transaction commands.} Here we show the full pentuple;
+$t$ is the running thread.
+\begin{mathpar}
+\inferrule*[left=\rulename{Get}]{ }
+  {\langle \store,\log,E[\getc{l}],\hat\store,\hat e\rangle \tred
+   \langle \store,\log,E[\store(l)],\hat\store,\hat e\rangle}
+\and
+\inferrule*[left=\rulename{Set}]{ }
+  {\langle \store,\log,E[\setc{l}{v}],\hat\store,\hat e\rangle \tred
+   \langle \subst{\store}{l}{v},\log,E[\unit],\hat\store,\hat e\rangle}
+\\
+\inferrule*[left=\rulename{Begin}]{ }
+  {\langle \store,\nin,E[\bbegin],\nin,\nin\rangle \tred
+   \langle \store,\ t,\ E[\unit],\ \store,\ E[\unit]\rangle}
+\and
+\inferrule*[left=\rulename{End}]{ }
+  {\langle \store,t,E[\eend],\hat\store,\hat e\rangle \tred
+   \langle \store,\ \nin,\ E[\unit],\ \nin,\ \nin\rangle}
+\\
+\inferrule*[left=\rulename{Retry}]{ }
+  {\langle \store,t,E[\retry],\hat\store,\hat e\rangle \tred
+   \langle \hat\store,\ t,\ \hat e,\ \hat\store,\ \hat e\rangle}
+\end{mathpar}
 
 
 
