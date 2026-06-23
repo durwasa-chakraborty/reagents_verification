@@ -136,9 +136,9 @@ E(t)=\getc{l} \\
 \sigma(l)=v \\
 E' = E[t \mapsto v]
 }
-{(\sigma,\lambda,E,\hat{\sigma},\hat{E})
+{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
  \xrightarrow{\getc{l}}
- (\sigma,\lambda,E',\hat{\sigma},\hat{E})\\}
+ \langle\sigma,\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
 \]
 
 \raggedright$\textrm{\sc{[Set]}}$
@@ -149,9 +149,9 @@ E(t)=\setc{l}{v} \\
 \sigma'=\sigma[l \mapsto v] \\
 E' = E[t \mapsto \unit]
 }
-{(\sigma,\lambda,E,\hat{\sigma},\hat{E})
+{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
  \xrightarrow{\setc{l}{v}}
- (\sigma',\lambda,E',\hat{\sigma},\hat{E})\\}
+ \langle\sigma',\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
 \]
 
 \raggedright$\textrm{\sc{[Begin]}}$
@@ -160,14 +160,15 @@ E' = E[t \mapsto \unit]
 t \in dom(E) \\
 E(t)=\bbegin \\
 \lambda(t)=\bot \\
+\forall t' \in dom(\lambda).\; t' \neq t \implies \lambda(t')=\bot \\
 \lambda'=\lambda[t \mapsto \top] \\
 \hat{\sigma}'=\hat{\sigma}[t \mapsto \sigma] \\
 \hat{E}'=\hat{E}[t \mapsto E(t)] \\
 E' = E[t \mapsto \unit]
 }
-{(\sigma,\lambda,E,\hat{\sigma},\hat{E})
+{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
  \xrightarrow{\bbegin}
- (\sigma,\lambda',E',\hat{\sigma}',\hat{E}')\\}
+ \langle\sigma,\lambda',E',\hat{\sigma}',\hat{E}'\rangle\\}
 \]
 
 \raggedright$\textrm{\sc{[End]}}$
@@ -179,9 +180,9 @@ E(t)=\eend \\
 \lambda'=\lambda[t \mapsto \bot] \\
 E' = E[t \mapsto \unit]
 }
-{(\sigma,\lambda,E,\hat{\sigma},\hat{E})
+{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
  \xrightarrow{\eend}
- (\sigma,\lambda',E',\hat{\sigma},\hat{E})\\}
+ \langle\sigma,\lambda',E',\hat{\sigma},\hat{E}\rangle\\}
 \]
 
 \raggedright$\textrm{\sc{[Retry]}}$
@@ -192,9 +193,9 @@ E(t)=\retry \\
 \lambda(t)=\top \\
 E' = E[t \mapsto \hat{E}(t)]
 }
-{(\sigma,\lambda,E,\hat{\sigma},\hat{E})
+{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
  \xrightarrow{\retry}
- (\sigma,\lambda,E',\hat{\sigma},\hat{E})\\}
+ \langle\sigma,\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
 \]
 
 \caption{Semantics of Reagent commands}
@@ -209,7 +210,7 @@ $\textrm{\sc{Set}}$ updates a shared location. When thread $t$ executes
 $\setc{l}{v}$, the value stored at location $l$ is updated to $v$. The
 command returns the unit value $\unit$.
 
-$\textrm{\sc{Begin}}$ starts a transaction. The executing thread must not already be inside a transaction. The thread is marked as transactional, and the current store and expression are saved in $\hat{\sigma}$ and $\hat{E}$ respectively. These saved values can later be used by $\textrm{\sc{Retry}}$.
+$\textrm{\sc{Begin}}$ starts a transaction. The executing thread must not already be inside a transaction, and no other thread may currently be inside a transaction either; transactions are therefore mutually exclusive, with at most one live transaction across all threads at any time. The thread is marked as transactional, and the current store and expression are saved in $\hat{\sigma}$ and $\hat{E}$ respectively. These saved values can later be used by $\textrm{\sc{Retry}}$.
 
 $\textrm{\sc{End}}$ commits the current transaction. The executing thread is marked as no longer being inside a transaction. The store is unchanged.
 
