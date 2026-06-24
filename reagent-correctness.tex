@@ -34,6 +34,23 @@
 \newcommand{\subst}[3]{#1[#2\mapsto #3]}
 \newcommand{\rulename}[1]{\textsc{\small #1}}
 
+\newtheorem{definition}{Definition}
+
+%% ---- declarative-semantics notation (Cerone et al. style) ----
+\newcommand{\Op}{\mathit{Op}}
+\newcommand{\EventId}{\mathit{EventId}}
+\newcommand{\HEvent}{\mathit{HEvent}}
+\newcommand{\WEvent}{\mathit{WEvent}}
+\newcommand{\REvent}{\mathit{REvent}}
+\newcommand{\rdev}[2]{\mathsf{read}(#1,#2)}
+\newcommand{\wrev}[2]{\mathsf{write}(#1,#2)}
+\newcommand{\retryev}{\rho}                 % retry event marker
+\newcommand{\po}{\mathit{po}}
+\newcommand{\maxpo}{\mathrm{max}_{\po}}
+\newcommand{\att}{\mathit{att}}
+\newcommand{\anyop}[2]{\mathord{\_}(#1,#2)} % read(x,n) or write(x,n)
+\newcommand{\pob}{\xrightarrow{\po}}        % program-order edge
+
 %% ---- listings style for the Reagent language ----
 \definecolor{kw}{rgb}{0.10,0.10,0.55}
 \definecolor{cm}{rgb}{0.30,0.45,0.30}
@@ -198,6 +215,21 @@ E' = E[t \mapsto \hat{E}(t)]
  \langle\sigma,\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
 \]
 
+\raggedright$\textrm{\sc{[Retry\_alt]}}$
+\[
+\inferrule{
+t \in dom(E) \\
+E(t)=\retry \\
+\lambda(t)=\top \\
+\sigma' = \hat{\sigma}(t) \\
+\lambda'=\lambda[t \mapsto \bot] \\
+E' = E[t \mapsto (\bbegin \,;\, \hat{E}(t))]
+}
+{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
+ \xrightarrow{\retry}
+ \langle\sigma',\lambda',E',\hat{\sigma},\hat{E}\rangle\\}
+\]
+
 \caption{Semantics of Reagent commands}
 \label{fig:semantics}
 \end{figure}
@@ -217,37 +249,250 @@ $\textrm{\sc{End}}$ commits the current transaction. The executing thread is mar
 $\textrm{\sc{Retry}}$ aborts the current execution of a transaction and
 restarts it from the previously saved expression stored in $\hat{E}$. The thread remains inside the transaction.
 
-\begin{comment}
+$\textrm{\sc{Retry\_alt}}$ is a \emph{lock-releasing} variant of $\textrm{\sc{Retry}}$. Instead of keeping the thread inside the transaction and spinning, it (i) rolls the store back to the snapshot $\hat{\sigma}(t)$, so the abandoned attempt has no effect; (ii) sets $\lambda(t)=\bot$, \emph{releasing the single critical section} so that another thread may now $\bbegin$ and run; and (iii) re-arms $t$'s expression as $\bbegin\,;\,\hat{E}(t)$, so that when $t$ is next scheduled it must re-acquire the lock through $\textrm{\sc{Begin}}$ before re-running the saved body. Because $t$ relinquishes the lock and takes a fresh snapshot on its next $\bbegin$, a write committed by another thread in the meantime is visible to the new attempt. This is precisely the ingredient absent from $\textrm{\sc{Retry}}$: it allows a \retry\ to terminate after finitely many rounds, rather than spinning forever on an unchanging snapshot.
+
+\paragraph{Scratch note --- issue with \textsc{Begin}.}
+I think there is a problem with the operational semantics as I have written it.
+$E$ is a map $\Tid \rightharpoonup \Expr$, and the expression a thread actually
+holds is something like $\bbegin\,;\,\textit{body}\,;\,\eend$ --- it is never the
+bare token $\bbegin$. So my premise $E(t) = \bbegin$ will essentially never fire:
+$E(t)$ is always of the shape $\bbegin\,;\,\textit{body}\,;\,\eend$, not $\bbegin$
+on its own, and the two are different expressions (a sequence versus a single
+command). I need to somehow bake the idea of a \emph{continuation} in here. A
+$\bbegin\,;\,\textit{body}\,;\,\eend$, when its leading $\bbegin$ is encountered,
+should reduce to $\unit\,;\,\textit{body}\,;\,\eend$ --- i.e.\ the $\bbegin$ fires
+\emph{in place} and turns into $\unit$, while the rest of the program
+($\textit{body}\,;\,\eend$) is carried along untouched. (This is what
+Section~\ref{sec:begin-cont} attempts to sort out properly with evaluation contexts:
+$E(t) = K[\bbegin]$ steps to $K[\unit]$.)
+
 %% =====================================================================
-\section{Operational semantics}
-\label{sec:sem}
+\section{A declarative semantics for internal consistency}
+\label{sec:declarative}
+
+In a single-thread, mutual-exclusion, retry, $\forall$ program $P$: either $P$ never executes \texttt{retry}, or it executes \texttt{retry} infinitely often. I do not have a concrete proof of it, but the state the thread restarts from is $\sigma(t), \hat{E(t)}$, both fixed at \texttt{begin} and never mutated, and nothing else can change $\sigma$. Therefore, every attempt starts from an identical configuration; determinism makes every attempt an identical replay. With the constraint for our phase 1, I do not think we can have a ``retry exactly once'' mechanism. Also, the number of threads $n$ is irrelevant because the transaction holds the lock across its retries. For a ``retry exactly once'' mechanism, we at least need two threads in a transaction area. Let's call one a \texttt{waker}. For a waker to exist, some other thread must change $l$ between the re-attempts while $A$ is in mid-transaction. We can also consider one more thing: the \texttt{retry} releases the lock, which I have tried to capture in the \textsc{Retry-Alt}. It sets $\lambda(t) = \bot$, aborts and blocks, letting another transaction commit a change, and then re-acquires the lock and re-runs.
+
+Following Cerone and Gotsman, we record one transactional run as a
+\emph{history}: a set of events $e = (\mathit{id}, o)$ totally ordered by program
+order $\po$, where each operation $o$ is a read $\rdev{l}{v}$, a write
+$\wrev{l}{v}$, or a retry marker $\retryev$. We write $\HEvent_l$ for the read
+and write events on location $l$, $\po^{-1}(e) = \{f \mid f \pob e\}$ for the
+events preceding $e$, and $R(E)$ for the retry events of the run. Their internal
+consistency axiom requires every read to return the value of the
+program-order-latest operation on the same location that precedes it:
+\[
+\forall e.\ \forall l,v.\quad
+\bigl(e = (\_,\rdev{l}{v}) \,\wedge\, \po^{-1}(e)\cap\HEvent_l \neq \emptyset\bigr)
+\implies
+\maxpo\bigl(\po^{-1}(e)\cap\HEvent_l\bigr) = (\_,\anyop{l}{v}),
+\tag{\textsc{Int}}
+\]
+where $\anyop{l}{v}$ abbreviates ``a read \emph{or} a write of $v$ on $l$''.
+
+Because \textsc{Retry-Alt} sends the thread back to $\bbegin$ --- discarding the
+attempt's writes, releasing the lock, and re-reading from a \emph{fresh
+snapshot} --- every read must be redone in the new attempt, and a read may no
+longer depend on anything observed before the retry. We capture this by keeping,
+for a read $e$, only the preceding operations on $l$ that lie in its
+\emph{current attempt}: those not separated from $e$ by a retry event,
+and  replacing the predecessor set of \textsc{Int} with $\att_l(e)$:
+all events f that (1) precede e in program order, (2) touch l, and (3) have no retry between them and e.
+
+(still trying to figure it out)
+
+\
+
+%% =====================================================================
+\section{\textsc{Begin} as a continuation}
+\label{sec:begin-cont}
+
+The command rules of Section~\ref{subsec:semantics} are stated as if each command
+were the \emph{entire} expression a thread is evaluating: $\textsc{Begin}$, for
+instance, has premise $E(t)=\bbegin$ and sets $E'=E[t\mapsto\unit]$. This has two
+defects. First, it discards the rest of the program: a real thread runs
+$\bbegin\,;\,\textit{body}\,;\,\eend$, and after $\bbegin$ the $\textit{body}$
+must survive. Second, the resume point saved for $\retry$ is the bare token
+$\bbegin$ rather than the transaction body. Both defects have the same cause ---
+the rule cannot see the code \emph{around} the command --- and the same cure:
+\emph{evaluation contexts}. The key insight is that $\bbegin$ should fire in
+context and save its \emph{continuation} as the value of $\hat{E}(t)$.
+
+\subsection{Evaluation contexts}
+
+An evaluation context $K$ is an expression with a single hole $[\cdot]$ marking
+where the next reduction step takes place:
+\[
+K \;::=\; [\cdot]
+\;\mid\; K\,;\,e
+\;\mid\; \textsf{let}\;x = K\;\textsf{in}\;e
+\;\mid\; K + e \;\mid\; v + K
+\;\mid\; K == e \;\mid\; v == K
+\;\mid\; \textsf{if}\;K\;\textsf{then}\;e\;\textsf{else}\;e
+\;\mid\; \setc{l}{K}.
+\]
+We write $K[e]$ for the expression obtained by plugging $e$ into the hole. Thus
+$E(t)=K[\bbegin]$ asserts that the redex thread $t$ is about to execute is
+$\bbegin$, sitting inside the surrounding continuation $K$. The contexts pin down
+a left-to-right, call-by-value evaluation order: e.g.\ $\setc{l}{K}$ allows the
+argument of a \textsf{set} to be reduced before the write fires, and $v + K$
+allows the right operand of $+$ only once the left is a value $v$.
+
+\subsection{The command rules in context form}
+
+Every command rule now fires on its redex inside an arbitrary context $K$,
+preserving the continuation. The configuration is the pentuple
+$\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle$ of
+Section~\ref{subsec:semantics}.
+
+\raggedright$\textrm{\sc{[Get]}}$
+\[
+\inferrule{
+t \in dom(E) \\
+E(t)=K[\getc{l}] \\
+\sigma(l)=v \\
+E' = E[t \mapsto K[v]]
+}
+{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
+ \xrightarrow{\getc{l}}
+ \langle\sigma,\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
+\]
+
+\raggedright$\textrm{\sc{[Set]}}$
+\[
+\inferrule{
+t \in dom(E) \\
+E(t)=K[\setc{l}{v}] \\
+\sigma'=\sigma[l \mapsto v] \\
+E' = E[t \mapsto K[\unit]]
+}
+{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
+ \xrightarrow{\setc{l}{v}}
+ \langle\sigma',\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
+\]
+
+\raggedright$\textrm{\sc{[Begin]}}$
+\[
+\inferrule{
+t \in dom(E) \\
+E(t)=K[\bbegin] \\
+\lambda(t)=\bot \\
+\forall t' \in dom(\lambda).\; t' \neq t \implies \lambda(t')=\bot \\
+\lambda'=\lambda[t \mapsto \top] \\
+\hat{\sigma}'=\hat{\sigma}[t \mapsto \sigma] \\
+\hat{E}'=\hat{E}[t \mapsto K[\unit]] \\
+E' = E[t \mapsto K[\unit]]
+}
+{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
+ \xrightarrow{\bbegin}
+ \langle\sigma,\lambda',E',\hat{\sigma}',\hat{E}'\rangle\\}
+\]
+
+\raggedright$\textrm{\sc{[End]}}$
+\[
+\inferrule{
+t \in dom(E) \\
+E(t)=K[\eend] \\
+\lambda(t)=\top \\
+\lambda'=\lambda[t \mapsto \bot] \\
+E' = E[t \mapsto K[\unit]]
+}
+{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
+ \xrightarrow{\eend}
+ \langle\sigma,\lambda',E',\hat{\sigma},\hat{E}\rangle\\}
+\]
+
+\raggedright$\textrm{\sc{[Retry]}}$
+\[
+\inferrule{
+t \in dom(E) \\
+E(t)=K[\retry] \\
+\lambda(t)=\top \\
+E' = E[t \mapsto \hat{E}(t)]
+}
+{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
+ \xrightarrow{\retry}
+ \langle\sigma,\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
+\]
+
+\raggedright$\textrm{\sc{[Retry\_alt]}}$
+\[
+\inferrule{
+t \in dom(E) \\
+E(t)=K[\retry] \\
+\lambda(t)=\top \\
+\sigma' = \hat{\sigma}(t) \\
+\lambda'=\lambda[t \mapsto \bot] \\
+E' = E[t \mapsto (\bbegin \,;\, \hat{E}(t))]
+}
+{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
+ \xrightarrow{\retry}
+ \langle\sigma',\lambda',E',\hat{\sigma},\hat{E}\rangle\\}
+\]
+
+The two changes to $\textsc{Begin}$ are exactly the fixes anticipated above:
+\begin{itemize}
+\item $E(t)=K[\bbegin]$ and $E'=E[t\mapsto K[\unit]]$: the $\bbegin$ reduces to
+$\unit$ \emph{in place}, leaving the continuation $K$ --- and hence the
+transaction body --- intact.
+\item $\hat{E}'=\hat{E}[t\mapsto K[\unit]]$: the saved resume point is $K[\unit]$,
+the body \emph{after} $\bbegin$, which is precisely what $\textsc{Retry}$
+reinstates.
+\end{itemize}
+Note that $\textsc{Retry}$ and $\textsc{Retry\_alt}$ are the rules that
+\emph{discard} the current context $K$: on a retry the thread abandons wherever
+it had reached and resumes from the saved body $\hat{E}(t)$. The two differ only
+in how they resume. $\textsc{Retry}$ keeps the lock ($\lambda(t)=\top$) and
+re-runs the body directly. $\textsc{Retry\_alt}$ instead rolls the store back to
+the snapshot $\hat{\sigma}(t)$, releases the lock ($\lambda(t)=\bot$), and
+re-arms $t$ as $\bbegin\,;\,\hat{E}(t)$ so that the thread must re-acquire the
+lock through $\textsc{Begin}$ before re-running --- taking a fresh snapshot in the
+process, and so observing any writes other threads committed while it was out of
+the critical section. Since $\hat{E}(t) = K_0[\unit]$ is the body saved by
+$\textsc{Begin}$ (where $K_0$ is the context at the opening $\bbegin$), the
+re-armed expression $\bbegin\,;\,\hat{E}(t)$ reconstructs the original
+transaction and reduces back to $K_0[\bbegin]$, so re-entry is a fixed point that
+re-derives the same $\hat{E}(t)$.
+
+\subsection{Administrative reductions}
 
 
-\paragraph{Store and transaction commands.} Here we show the full pentuple;
-$t$ is the running thread.
+\[
+\begin{aligned}
+K[\textsf{let}\;x = v\;\textsf{in}\;e] &\;\reduces\; K[\subst{e}{x}{v}] &
+K[\unit \,;\, e] &\;\reduces\; K[e] \\
+K[n_1 + n_2] &\;\reduces\; K[n] \quad (n = n_1 + n_2) &
+K[\textsf{if}\;\textsf{true}\;\textsf{then}\;e_1\;\textsf{else}\;e_2]
+   &\;\reduces\; K[e_1] \\
+K[v_1 == v_2] &\;\reduces\; K[b] \quad (b = (v_1 = v_2)) &
+K[\textsf{if}\;\textsf{false}\;\textsf{then}\;e_1\;\textsf{else}\;e_2]
+   &\;\reduces\; K[e_2]
+\end{aligned}
+\]
+Here the notation is substitution $\subst{e}{x}{v}$ in the \textsf{let}
+rather than map update.
 
-\begin{mathpar}
-\inferrule*[left=\rulename{Get}]{ }
-  {\langle \store,\log,E[\getc{l}],\hat\store,\hat e\rangle \tred
-   \langle \store,\log,E[\store(l)],\hat\store,\hat e\rangle}
-\and
-\inferrule*[left=\rulename{Set}]{ }
-  {\langle \store,\log,E[\setc{l}{v}],\hat\store,\hat e\rangle \tred
-   \langle \subst{\store}{l}{v},\log,E[\unit],\hat\store,\hat e\rangle}
-\\
-\inferrule*[left=\rulename{Begin}]{ }
-  {\langle \store,\nin,E[\bbegin],\nin,\nin\rangle \tred
-   \langle \store,\ t,\ E[\unit],\ \store,\ E[\unit]\rangle}
-\and
-\inferrule*[left=\rulename{End}]{ }
-  {\langle \store,t,E[\eend],\hat\store,\hat e\rangle \tred
-   \langle \store,\ \nin,\ E[\unit],\ \nin,\ \nin\rangle}
-\\
-\inferrule*[left=\rulename{Retry}]{ }
-  {\langle \store,t,E[\retry],\hat\store,\hat e\rangle \tred
-   \langle \hat\store,\ t,\ \hat e,\ \hat\store,\ \hat e\rangle}
-\end{mathpar}
-\end{comment}
+\subsection{The running example, in context}
+
+Take $E(t) = (\,\textsf{let}\;x = 1\;\textsf{in}\;x+1\,)\,;\,\eend$ after the
+leading $\bbegin$ has been exposed; concretely the thread starts at
+$E(t) = \bbegin \,;\, (\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend$, which is
+$K[\bbegin]$ with
+\[
+K \;=\; [\cdot]\,;\,(\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend.
+\]
+Applying $\textsc{Begin}$:
+\[
+\hat{E}'(t) = E'(t) = K[\unit]
+            = \unit \,;\, (\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend,
+\]
+and the administrative rule $K[\unit\,;\,e]\reduces K[e]$ then drops the leading
+$\unit$, leaving $(\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend$ as both the
+live expression and the saved resume point $\hat{E}(t)$. The subsequent steps ---
+$\textsf{let}$, then $+$, then committing at $\eend$ --- all proceed by plugging
+into successively trailing \texttt{rest} contexts. Should a $\retry$ be reached anywhere in
+the body, $\textsc{Retry}$ restores $E'(t)=\hat{E}(t)
+= (\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend$, re-running the transaction
+from just after $\bbegin$ without re-opening it.
 
 
 \end{document}
