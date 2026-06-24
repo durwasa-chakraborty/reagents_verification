@@ -101,7 +101,7 @@ e     & ::= & v \mid x          & \text{values, variables}\\
 Keywords are \code{let in get set begin end retry if then else true false}.
 
 %% =====================================================================
-\subsection{Semantics of the Reagent Language}
+\subsection{Semantics :: of the Reagent Language}
 \label{subsec:semantics}
 
 The semantics of the Reagent language defines all possible executions of a concurrent program consisting of multiple threads interacting through a shared memory. Formally, the semantics are represented by a labeled transition system $\mathcal{S} = (\Phi,\rightarrow)$, where $\Phi$ is the set of program configurations and \(\rightarrow\) is the
@@ -216,7 +216,7 @@ $\textrm{\sc{End}}$ commits the current transaction. The executing thread is mar
 $\textrm{\sc{Retry}}$ aborts the current execution of a transaction and
 restarts it from the previously saved expression stored in $\hat{E}$. The thread remains inside the transaction.
 
-\begin{comment}
+%\begin{comment}
 %% =====================================================================
 \section{Operational semantics}
 \label{sec:sem}
@@ -246,7 +246,7 @@ $t$ is the running thread.
   {\langle \store,t,E[\retry],\hat\store,\hat e\rangle \tred
    \langle \hat\store,\ t,\ \hat e,\ \hat\store,\ \hat e\rangle}
 \end{mathpar}
-\end{comment}
+%\end{comment}
 
 
 \end{document}
