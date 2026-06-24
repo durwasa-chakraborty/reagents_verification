@@ -102,11 +102,9 @@ c     & ::= & \getc{l}          & \text{read a shared location}\\
       & \mid & \retry           & \text{abort and restart the transaction}\\[4pt]
 e     & ::= & v \mid x          & \text{values, variables}\\
       & \mid & e_1 + e_2        & \text{addition (the whiteboard's }\oplus\text{)}\\
-      & \mid & e_1 == e_2 \mid e_1\;\texttt{!=}\;e_2 & \text{comparison (naturals $\to$ boolean)}\\
       & \mid & \textsf{let}\;x = e_1\;\textsf{in}\;e_2 & \text{binding}\\
       & \mid & c                & \text{a command (and not a control-flow)}\\
       & \mid & \textsf{if}\;e\;\textsf{then}\;e\;\textsf{else}\;e & \text{conditional}\\
-      & \mid & e_1 \,;\, e_2    & \text{optional sequencing}\\
 \end{array}
 \]
 
