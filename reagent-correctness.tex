@@ -34,6 +34,16 @@
 \newcommand{\subst}[3]{#1[#2\mapsto #3]}
 \newcommand{\rulename}[1]{\textsc{\small #1}}
 
+%% ---- evaluation-context notation ----
+%% K is reserved for continuations; an evaluation context is written E with a
+%% down-arrow subscript and the hole filled via solid (double) brackets: E_\downarrow[[ e ]].
+\newcommand{\ectx}{E_{\downarrow}}
+\newcommand{\ehole}[1]{\ectx\llbracket #1 \rrbracket}
+%% runtime get/set actions: they record the value read/written and the
+%% transaction token t, written get(l,v)@t and set(l,v)@t.
+\newcommand{\getev}[3]{\textsf{get}(#1,#2)\,@\,#3}
+\newcommand{\setev}[3]{\textsf{set}(#1,#2)\,@\,#3}
+
 \newtheorem{definition}{Definition}
 
 %% ---- declarative-semantics notation (Cerone et al. style) ----
@@ -128,15 +138,14 @@ Each configuration $C$ in $\Phi$ represents the global state of the program at a
 
 \item \(\sigma : \Loc \rightarrow \Val\) maps each shared memory location to its current value.
 
-\item \(\lambda : \Tid \rightarrow \{\bot,\top\}\) records the transactional status of each thread. For a thread \(t\), $\lambda(t)=\top$ indicates that the thread is currently executing inside a transaction, whereas $\lambda(t)=\bot$ indicates that the thread is not executing inside any transaction.
+\item \(\lambda \in \Tid \cup \{\bot\}\) records the \emph{token} of the unique transaction that is currently live. $\lambda = t$ means that the transaction opened by thread $t$ (whose token is $t$) is running, and $\lambda = \bot$ means that no transaction is active. Because at most one transaction runs at any time, $\lambda$ is a single global value, not a per-thread map: the shared state should not be indexed by thread identity.
 
 \item $E : \Tid \rightharpoonup \Expr$ maps each active thread to the
 expression currently being evaluated by that thread.
 
-\item $\hat{\sigma}: \Tid \rightharpoonup (\Loc \rightarrow \Val)$ stores for each thread executing a transaction, the snapshot of the shared store that was taken when the transaction began. These snapshots are used to support transaction restart.
+\item $\hat{\sigma}: \Loc \rightarrow \Val$ is the snapshot of the shared store taken when the live transaction began; it is defined only while $\lambda \neq \bot$, and is used to support transaction restart. Since at most one transaction is active, a single snapshot suffices.
 
-\item $\hat{E} : \Tid \rightharpoonup \Expr$ stores for each thread
-executing a transaction, the expression from which execution should resume when a retry operation is encountered.
+\item $\hat{E} \in \Expr$ is the expression from which execution should resume when a retry operation is encountered; like $\hat{\sigma}$ it is defined only while $\lambda \neq \bot$, and a single saved expression suffices because only one transaction is ever live.
 
 \end{itemize}
 
@@ -147,12 +156,13 @@ executing a transaction, the expression from which execution should resume when 
 \[
 \inferrule{
 t \in dom(E) \\
-E(t)=\getc{l} \\
+E(t)=\ehole{\getc{l}} \\
+\lambda = t \\
 \sigma(l)=v \\
-E' = E[t \mapsto v]
+E' = E[t \mapsto \ehole{v}]
 }
 {\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\getc{l}}
+ \xrightarrow{\getev{l}{v}{t}}
  \langle\sigma,\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
 \]
 
@@ -160,12 +170,13 @@ E' = E[t \mapsto v]
 \[
 \inferrule{
 t \in dom(E) \\
-E(t)=\setc{l}{v} \\
+E(t)=\ehole{\setc{l}{v}} \\
+\lambda = t \\
 \sigma'=\sigma[l \mapsto v] \\
-E' = E[t \mapsto \unit]
+E' = E[t \mapsto \ehole{\unit}]
 }
 {\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\setc{l}{v}}
+ \xrightarrow{\setev{l}{v}{t}}
  \langle\sigma',\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
 \]
 
@@ -173,16 +184,15 @@ E' = E[t \mapsto \unit]
 \[
 \inferrule{
 t \in dom(E) \\
-E(t)=\bbegin \\
-\lambda(t)=\bot \\
-\forall t' \in dom(\lambda).\; t' \neq t \implies \lambda(t')=\bot \\
-\lambda'=\lambda[t \mapsto \top] \\
-\hat{\sigma}'=\hat{\sigma}[t \mapsto \sigma] \\
-\hat{E}'=\hat{E}[t \mapsto E(t)] \\
-E' = E[t \mapsto \unit]
+E(t)=\ehole{\bbegin} \\
+\lambda = \bot \\
+\lambda'= t \\
+\hat{\sigma}'=\sigma \\
+\hat{E}'=\ehole{\unit} \\
+E' = E[t \mapsto \ehole{\unit}]
 }
 {\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\bbegin}
+ \xrightarrow{\bbegin\,@\,t}
  \langle\sigma,\lambda',E',\hat{\sigma}',\hat{E}'\rangle\\}
 \]
 
@@ -190,43 +200,33 @@ E' = E[t \mapsto \unit]
 \[
 \inferrule{
 t \in dom(E) \\
-E(t)=\eend \\
-\lambda(t)=\top \\
-\lambda'=\lambda[t \mapsto \bot] \\
-E' = E[t \mapsto \unit]
+E(t)=\ehole{\eend} \\
+\lambda = t \\
+\lambda'= \bot \\
+E' = E[t \mapsto \ehole{\unit}]
 }
 {\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\eend}
+ \xrightarrow{\eend\,@\,t}
  \langle\sigma,\lambda',E',\hat{\sigma},\hat{E}\rangle\\}
 \]
+
+
 
 \raggedright$\textrm{\sc{[Retry]}}$
 \[
 \inferrule{
 t \in dom(E) \\
-E(t)=\retry \\
-\lambda(t)=\top \\
-E' = E[t \mapsto \hat{E}(t)]
+E(t)=\ehole{\retry} \\
+\lambda = t \\
+\sigma' = \hat{\sigma} \\
+\lambda'= \bot \\
+E' = E[t \mapsto (\bbegin \,;\, \hat{E})]
 }
 {\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\retry}
- \langle\sigma,\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
-\]
-
-\raggedright$\textrm{\sc{[Retry\_alt]}}$
-\[
-\inferrule{
-t \in dom(E) \\
-E(t)=\retry \\
-\lambda(t)=\top \\
-\sigma' = \hat{\sigma}(t) \\
-\lambda'=\lambda[t \mapsto \bot] \\
-E' = E[t \mapsto (\bbegin \,;\, \hat{E}(t))]
-}
-{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\retry}
+ \xrightarrow{\retry\,@\,t}
  \langle\sigma',\lambda',E',\hat{\sigma},\hat{E}\rangle\\}
 \]
+
 
 \caption{Semantics of Reagent commands}
 \label{fig:semantics}
@@ -234,35 +234,154 @@ E' = E[t \mapsto (\bbegin \,;\, \hat{E}(t))]
 
 Figure~\ref{fig:semantics} gives a formal description of the transition
 rules. $\textrm{\sc{Get}}$ reads the value stored at a shared location
-$l$. If thread $t$ executes $\getc{l}$ and $\sigma(l)=v$, then the command returns the value $v$. The store and transaction state remain unchanged.
+$l$. If thread $t$ holds the live transaction ($\lambda = t$) and $\sigma(l)=v$, then $\getc{l}$ returns the value $v$; the emitted action $\getev{l}{v}{t}$ records both the value $v$ that was read and the token $t$ of the transaction that read it. The store and transaction state remain unchanged.
 
-$\textrm{\sc{Set}}$ updates a shared location. When thread $t$ executes
-$\setc{l}{v}$, the value stored at location $l$ is updated to $v$. The
-command returns the unit value $\unit$.
+$\textrm{\sc{Set}}$ updates a shared location. When thread $t$ (with $\lambda = t$) executes
+$\setc{l}{v}$, the value stored at location $l$ is updated to $v$ and the
+command returns the unit value $\unit$; the emitted action $\setev{l}{v}{t}$ records the written value $v$ and the token $t$.
 
-$\textrm{\sc{Begin}}$ starts a transaction. The executing thread must not already be inside a transaction, and no other thread may currently be inside a transaction either; transactions are therefore mutually exclusive, with at most one live transaction across all threads at any time. The thread is marked as transactional, and the current store and expression are saved in $\hat{\sigma}$ and $\hat{E}$ respectively. These saved values can later be used by $\textrm{\sc{Retry}}$.
+$\textrm{\sc{Begin}}$ starts a transaction. No transaction may currently be live ($\lambda = \bot$); transactions are therefore mutually exclusive, with at most one live transaction across all threads at any time. $\textrm{\sc{Begin}}$ creates a new token $t$ for the transaction and records it by setting $\lambda := t$, and the current store and expression are saved in $\hat{\sigma}$ and $\hat{E}$ respectively. These saved values can later be used by $\textrm{\sc{Retry}}$.
 
-$\textrm{\sc{End}}$ commits the current transaction. The executing thread is marked as no longer being inside a transaction. The store is unchanged.
+$\textrm{\sc{End}}$ commits the current transaction, resetting $\lambda$ to $\bot$. The store is unchanged.
 
-$\textrm{\sc{Retry}}$ aborts the current execution of a transaction and
-restarts it from the previously saved expression stored in $\hat{E}$. The thread remains inside the transaction.
 
-$\textrm{\sc{Retry\_alt}}$ is a \emph{lock-releasing} variant of $\textrm{\sc{Retry}}$. Instead of keeping the thread inside the transaction and spinning, it (i) rolls the store back to the snapshot $\hat{\sigma}(t)$, so the abandoned attempt has no effect; (ii) sets $\lambda(t)=\bot$, \emph{releasing the single critical section} so that another thread may now $\bbegin$ and run; and (iii) re-arms $t$'s expression as $\bbegin\,;\,\hat{E}(t)$, so that when $t$ is next scheduled it must re-acquire the lock through $\textrm{\sc{Begin}}$ before re-running the saved body. Because $t$ relinquishes the lock and takes a fresh snapshot on its next $\bbegin$, a write committed by another thread in the meantime is visible to the new attempt. This is precisely the ingredient absent from $\textrm{\sc{Retry}}$: it allows a \retry\ to terminate after finitely many rounds, rather than spinning forever on an unchanging snapshot.
+$\textrm{\sc{Retry}}$ is retrying with \emph{lock-releasing}. Instead of keeping the thread inside the transaction and spinning, it (i) rolls the store back to the snapshot $\hat{\sigma}$, so the abandoned attempt has no effect; (ii) sets $\lambda=\bot$, \emph{releasing the single critical section} so that another thread may now $\bbegin$ and run; and (iii) re-arms $t$'s expression as $\bbegin\,;\,\hat{E}$, so that when $t$ is next scheduled it must re-acquire the lock through $\textrm{\sc{Begin}}$ before re-running the saved body. Because $t$ relinquishes the lock and takes a fresh snapshot on its next $\bbegin$, a write committed by another thread in the meantime is visible to the new attempt.
 
-\paragraph{Scratch note --- issue with \textsc{Begin}.}
-I think there is a problem with the operational semantics as I have written it.
-$E$ is a map $\Tid \rightharpoonup \Expr$, and the expression a thread actually
-holds is something like $\bbegin\,;\,\textit{body}\,;\,\eend$ --- it is never the
-bare token $\bbegin$. So my premise $E(t) = \bbegin$ will essentially never fire:
-$E(t)$ is always of the shape $\bbegin\,;\,\textit{body}\,;\,\eend$, not $\bbegin$
-on its own, and the two are different expressions (a sequence versus a single
-command). I need to somehow bake the idea of a \emph{continuation} in here. A
-$\bbegin\,;\,\textit{body}\,;\,\eend$, when its leading $\bbegin$ is encountered,
-should reduce to $\unit\,;\,\textit{body}\,;\,\eend$ --- i.e.\ the $\bbegin$ fires
-\emph{in place} and turns into $\unit$, while the rest of the program
-($\textit{body}\,;\,\eend$) is carried along untouched. (This is what
-Section~\ref{sec:begin-cont} attempts to sort out properly with evaluation contexts:
-$E(t) = K[\bbegin]$ steps to $K[\unit]$.)
+
+
+%% =====================================================================
+\section{A memory model}
+\label{sec:scheduling}
+
+This question came up during a discussion with \textsc{Vimala}, wherein she
+asked me about the memory model of \texttt{Reagents}. The following paragraph
+is an attempt to capture the core idea behind it. Because I want
+to ensure I have a decent understanding of the memory model  and weed out any misconceptions at a
+nascent stage, I am writing it down here so that you can point out any mistakes
+or gaps in my logic.
+
+
+So far the rules describe \emph{which} steps are possible; they say nothing about
+\emph{which thread} takes the next step. That choice belongs to a
+\emph{scheduler}, which at each point picks one thread from $dom(E)$ and lets it
+take a single transition. The transition relation is non-deterministic precisely
+because the scheduler is free to choose; an execution of the program is one
+particular sequence of scheduler choices.
+
+Now suppose every thread runs its own transaction, i.e.\ each $E(t)$ has the
+shape $\bbegin\,;\,\textit{body}_t\,;\,\eend$. Consider two threads $t_1$ and
+$t_2$ and an interleaving:
+
+\begin{itemize}
+\item The scheduler picks $t_2$. Thread $t_2$ fires $\textsc{Begin}$: since
+$\lambda = \bot$, the rule applies and sets $\lambda := t_2$. Thread $t_2$ has now
+\emph{acquired the lock} --- it owns the single live transaction.
+\item The scheduler preempts $t_2$ mid-transaction and selects $t_1$. Thread
+$t_1$ is poised at its own $\bbegin$, but its $\textsc{Begin}$ rule requires
+$\lambda = \bot$, whereas $\lambda = t_2$. The premise fails, so $t_1$ \emph{cannot
+make progress}: there is only one lock, and it forbids $t_1$ from entering the
+critical section while $t_2$ holds it. (Every tx rule
+$\textsc{Get}$, $\textsc{Set}$, $\textsc{End}$, $\textsc{Retry}$  carries the
+premise $\lambda = t$, so the only thread that can step transactionally is the
+current lock holder $t_2$.)
+\item Say a context switch happens, and the thread holding the
+transaction, $t_2$, is brought back up. It continues until it either commits
+($\textsc{End}$, which sets $\lambda := \bot$) or retries
+($\textsc{Retry}$, which also releases the lock). Either way $\lambda$ returns to
+$\bot$, and only then can $t_1$'s $\textsc{Begin}$ finally fire.
+\end{itemize}
+
+We assume the scheduler is \emph{fair}.
+
+%% =====================================================================
+
+\subsection{Evaluation contexts}
+
+An evaluation context $\ectx$ is an expression containing a single
+hole $[\cdot]$ that marks exactly where the next reduction step occurs. To
+avoid confusion, the notation $\ectx$ is used here in the
+same spirit as the small-step evaluation relation $X \downarrow Y$ (signifying
+that $X$ evaluates to $Y$).
+I just wated to separate this one specific notation of evaluation context from $E$, which represents a mapping from
+($\mathit{Tid}$) to expressions ($\mathit{Expr}$).
+\[
+\ectx \;::=\; [\cdot]
+\;\mid\; \ectx\,;\,e
+\;\mid\; \textsf{let}\;x = \ectx\;\textsf{in}\;e
+\;\mid\; \ectx + e \;\mid\; v + \ectx
+\;\mid\; \ectx == e \;\mid\; v == \ectx
+\;\mid\; \textsf{if}\;\ectx\;\textsf{then}\;e\;\textsf{else}\;e
+\;\mid\; \setc{l}{\ectx}.
+\]
+We write $\ehole{e}$ for the expression obtained by plugging $e$ into the hole. Thus
+$E(t)=\ehole{\bbegin}$ asserts that the redex thread $t$ is about to execute is
+$\bbegin$, sitting inside the surrounding continuation $\ectx$.
+
+\subsection{The command rules in context form}
+
+Every command rule now fires on its redex inside an arbitrary context $\ectx$,
+preserving the continuation. The configuration is the pentuple
+$\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle$ of
+Section~\ref{subsec:semantics}.
+
+\begin{itemize}
+\item $E(t)=\ehole{\bbegin}$ and $E'=E[t\mapsto \ehole{\unit}]$: the $\bbegin$ reduces to
+$\unit$ \emph{in place}, leaving the continuation $\ectx$.
+\item $\hat{E}'=\ehole{\unit}$: the saved resume point is $\ehole{\unit}$,
+the body \emph{after} $\bbegin$, which is precisely what $\textsc{Retry}$
+reinstates.
+\end{itemize}
+\textsc{Retry}rolls the store back to
+the snapshot $\hat{\sigma}$, releases the lock ($\lambda = \bot$), and
+re-arms $t$ as $\bbegin\,;\,\hat{E}$ so that the thread must re-acquire the
+lock through $\textsc{Begin}$ before re-running. I tried to capture the idea of taking a fresh snapshot in the
+process. Since, $\hat{E} = E_{\downarrow,0}\llbracket\unit\rrbracket$ is the body saved by
+$\textsc{Begin}$ (where $E_{\downarrow,0}$ is the context at the opening $\bbegin$), the
+re-armed expression $\bbegin\,;\,\hat{E}$ reconstructs the original
+transaction and reduces back to $E_{\downarrow,0}\llbracket\bbegin\rrbracket$.
+
+\subsection{Administrative reductions}
+
+
+\[
+\begin{aligned}
+\ehole{\textsf{let}\;x = v\;\textsf{in}\;e} &\;\reduces\; \ehole{\subst{e}{x}{v}} &
+\ehole{\unit \,;\, e} &\;\reduces\; \ehole{e} \\
+\ehole{n_1 + n_2} &\;\reduces\; \ehole{n} \quad (n = n_1 + n_2) &
+\ehole{\textsf{if}\;\textsf{true}\;\textsf{then}\;e_1\;\textsf{else}\;e_2}
+   &\;\reduces\; \ehole{e_1} \\
+\ehole{v_1 == v_2} &\;\reduces\; \ehole{b} \quad (b = (v_1 = v_2)) &
+\ehole{\textsf{if}\;\textsf{false}\;\textsf{then}\;e_1\;\textsf{else}\;e_2}
+   &\;\reduces\; \ehole{e_2}
+\end{aligned}
+\]
+Here the notation is substitution $\subst{e}{x}{v}$ in the \textsf{let}
+rather than map update.
+
+\subsection{The running example, in context}
+
+Take $E(t) = (\,\textsf{let}\;x = 1\;\textsf{in}\;x+1\,)\,;\,\eend$ after the
+leading $\bbegin$ has been exposed; concretely the thread starts at
+$E(t) = \bbegin \,;\, (\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend$, which is
+$\ehole{\bbegin}$ with
+\[
+\ectx \;=\; [\cdot]\,;\,(\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend.
+\]
+Applying $\textsc{Begin}$:
+\[
+\hat{E}' = E'(t) = \ehole{\unit}
+            = \unit \,;\, (\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend,
+\]
+and the administrative rule $\ehole{\unit\,;\,e}\reduces \ehole{e}$ then drops the leading
+$\unit$, leaving $(\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend$ as both the
+live expression and the saved resume point $\hat{E}$. The subsequent steps ::
+$\textsf{let}$, then $+$, then committing at $\eend$, all proceed by plugging
+into successively trailing \texttt{rest} contexts. Should a $\retry$ be reached anywhere in
+the body, $\textsc{Retry}$ restores $E'(t)=\hat{E}
+= (\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend$, re-running the transaction
+from just after $\bbegin$ without re-opening it.
+
+
 
 %% =====================================================================
 \section{A declarative semantics for internal consistency}
@@ -298,197 +417,8 @@ all events f that (1) precede e in program order, (2) touch l, and (3) have no r
 
 (still trying to figure it out)
 
-\
-
-%% =====================================================================
-\section{\textsc{Begin} as a continuation}
-\label{sec:begin-cont}
-
-The command rules of Section~\ref{subsec:semantics} are stated as if each command
-were the \emph{entire} expression a thread is evaluating: $\textsc{Begin}$, for
-instance, has premise $E(t)=\bbegin$ and sets $E'=E[t\mapsto\unit]$. This has two
-defects. First, it discards the rest of the program: a real thread runs
-$\bbegin\,;\,\textit{body}\,;\,\eend$, and after $\bbegin$ the $\textit{body}$
-must survive. Second, the resume point saved for $\retry$ is the bare token
-$\bbegin$ rather than the transaction body. Both defects have the same cause ---
-the rule cannot see the code \emph{around} the command --- and the same cure:
-\emph{evaluation contexts}. The key insight is that $\bbegin$ should fire in
-context and save its \emph{continuation} as the value of $\hat{E}(t)$.
-
-\subsection{Evaluation contexts}
-
-An evaluation context $K$ is an expression with a single hole $[\cdot]$ marking
-where the next reduction step takes place:
-\[
-K \;::=\; [\cdot]
-\;\mid\; \textsf{let}\;x = K\;\textsf{in}\;e
-\;\mid\; K + e \;\mid\; v + K
-\;\mid\; \textsf{if}\;K\;\textsf{then}\;e\;\textsf{else}\;e
-\;\mid\; \setc{l}{K}.
-\]
-We write $K[e]$ for the expression obtained by plugging $e$ into the hole. Thus
-$E(t)=K[\bbegin]$ asserts that the redex thread $t$ is about to execute is
-$\bbegin$, sitting inside the surrounding continuation $K$. The contexts pin down
-a left-to-right, call-by-value evaluation order: e.g.\ $\setc{l}{K}$ allows the
-argument of a \textsf{set} to be reduced before the write fires, and $v + K$
-allows the right operand of $+$ only once the left is a value $v$.
-
-\subsection{The command rules in context form}
-
-Every command rule now fires on its redex inside an arbitrary context $K$,
-preserving the continuation. The configuration is the pentuple
-$\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle$ of
-Section~\ref{subsec:semantics}.
-
-\raggedright$\textrm{\sc{[Get]}}$
-\[
-\inferrule{
-t \in dom(E) \\
-E(t)=K[\getc{l}] \\
-\sigma(l)=v \\
-E' = E[t \mapsto K[v]]
-}
-{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\getc{l}}
- \langle\sigma,\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
-\]
-
-\raggedright$\textrm{\sc{[Set]}}$
-\[
-\inferrule{
-t \in dom(E) \\
-E(t)=K[\setc{l}{v}] \\
-\sigma'=\sigma[l \mapsto v] \\
-E' = E[t \mapsto K[\unit]]
-}
-{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\setc{l}{v}}
- \langle\sigma',\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
-\]
-
-\raggedright$\textrm{\sc{[Begin]}}$
-\[
-\inferrule{
-t \in dom(E) \\
-E(t)=K[\bbegin] \\
-\lambda(t)=\bot \\
-\forall t' \in dom(\lambda).\; t' \neq t \implies \lambda(t')=\bot \\
-\lambda'=\lambda[t \mapsto \top] \\
-\hat{\sigma}'=\hat{\sigma}[t \mapsto \sigma] \\
-\hat{E}'=\hat{E}[t \mapsto K[\unit]] \\
-E' = E[t \mapsto K[\unit]]
-}
-{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\bbegin}
- \langle\sigma,\lambda',E',\hat{\sigma}',\hat{E}'\rangle\\}
-\]
-
-\raggedright$\textrm{\sc{[End]}}$
-\[
-\inferrule{
-t \in dom(E) \\
-E(t)=K[\eend] \\
-\lambda(t)=\top \\
-\lambda'=\lambda[t \mapsto \bot] \\
-E' = E[t \mapsto K[\unit]]
-}
-{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\eend}
- \langle\sigma,\lambda',E',\hat{\sigma},\hat{E}\rangle\\}
-\]
-
-\raggedright$\textrm{\sc{[Retry]}}$
-\[
-\inferrule{
-t \in dom(E) \\
-E(t)=K[\retry] \\
-\lambda(t)=\top \\
-E' = E[t \mapsto \hat{E}(t)]
-}
-{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\retry}
- \langle\sigma,\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
-\]
-
-\raggedright$\textrm{\sc{[Retry\_alt]}}$
-\[
-\inferrule{
-t \in dom(E) \\
-E(t)=K[\retry] \\
-\lambda(t)=\top \\
-\sigma' = \hat{\sigma}(t) \\
-\lambda'=\lambda[t \mapsto \bot] \\
-E' = E[t \mapsto (\bbegin \,;\, \hat{E}(t))]
-}
-{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\retry}
- \langle\sigma',\lambda',E',\hat{\sigma},\hat{E}\rangle\\}
-\]
-
-The two changes to $\textsc{Begin}$ are exactly the fixes anticipated above:
-\begin{itemize}
-\item $E(t)=K[\bbegin]$ and $E'=E[t\mapsto K[\unit]]$: the $\bbegin$ reduces to
-$\unit$ \emph{in place}, leaving the continuation $K$ --- and hence the
-transaction body --- intact.
-\item $\hat{E}'=\hat{E}[t\mapsto K[\unit]]$: the saved resume point is $K[\unit]$,
-the body \emph{after} $\bbegin$, which is precisely what $\textsc{Retry}$
-reinstates.
-\end{itemize}
-Note that $\textsc{Retry}$ and $\textsc{Retry\_alt}$ are the rules that
-\emph{discard} the current context $K$: on a retry the thread abandons wherever
-it had reached and resumes from the saved body $\hat{E}(t)$. The two differ only
-in how they resume. $\textsc{Retry}$ keeps the lock ($\lambda(t)=\top$) and
-re-runs the body directly. $\textsc{Retry\_alt}$ instead rolls the store back to
-the snapshot $\hat{\sigma}(t)$, releases the lock ($\lambda(t)=\bot$), and
-re-arms $t$ as $\bbegin\,;\,\hat{E}(t)$ so that the thread must re-acquire the
-lock through $\textsc{Begin}$ before re-running --- taking a fresh snapshot in the
-process, and so observing any writes other threads committed while it was out of
-the critical section. Since $\hat{E}(t) = K_0[\unit]$ is the body saved by
-$\textsc{Begin}$ (where $K_0$ is the context at the opening $\bbegin$), the
-re-armed expression $\bbegin\,;\,\hat{E}(t)$ reconstructs the original
-transaction and reduces back to $K_0[\bbegin]$, so re-entry is a fixed point that
-re-derives the same $\hat{E}(t)$.
-
-\subsection{Administrative reductions}
 
 
-\[
-\begin{aligned}
-K[\textsf{let}\;x = v\;\textsf{in}\;e] &\;\reduces\; K[\subst{e}{x}{v}] &
-K[\unit \,;\, e] &\;\reduces\; K[e] \\
-K[n_1 + n_2] &\;\reduces\; K[n] \quad (n = n_1 + n_2) &
-K[\textsf{if}\;\textsf{true}\;\textsf{then}\;e_1\;\textsf{else}\;e_2]
-   &\;\reduces\; K[e_1] \\
-K[v_1 == v_2] &\;\reduces\; K[b] \quad (b = (v_1 = v_2)) &
-K[\textsf{if}\;\textsf{false}\;\textsf{then}\;e_1\;\textsf{else}\;e_2]
-   &\;\reduces\; K[e_2]
-\end{aligned}
-\]
-Here the notation is substitution $\subst{e}{x}{v}$ in the \textsf{let}
-rather than map update.
-
-\subsection{The running example, in context}
-
-Take $E(t) = (\,\textsf{let}\;x = 1\;\textsf{in}\;x+1\,)\,;\,\eend$ after the
-leading $\bbegin$ has been exposed; concretely the thread starts at
-$E(t) = \bbegin \,;\, (\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend$, which is
-$K[\bbegin]$ with
-\[
-K \;=\; [\cdot]\,;\,(\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend.
-\]
-Applying $\textsc{Begin}$:
-\[
-\hat{E}'(t) = E'(t) = K[\unit]
-            = \unit \,;\, (\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend,
-\]
-and the administrative rule $K[\unit\,;\,e]\reduces K[e]$ then drops the leading
-$\unit$, leaving $(\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend$ as both the
-live expression and the saved resume point $\hat{E}(t)$. The subsequent steps ---
-$\textsf{let}$, then $+$, then committing at $\eend$ --- all proceed by plugging
-into successively trailing \texttt{rest} contexts. Should a $\retry$ be reached anywhere in
-the body, $\textsc{Retry}$ restores $E'(t)=\hat{E}(t)
-= (\textsf{let}\;x = 1\;\textsf{in}\;x+1)\,;\,\eend$, re-running the transaction
-from just after $\bbegin$ without re-opening it.
 
 
 \end{document}
