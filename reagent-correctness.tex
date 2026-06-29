@@ -321,10 +321,8 @@ An evaluation context $K$ is an expression with a single hole $[\cdot]$ marking
 where the next reduction step takes place:
 \[
 K \;::=\; [\cdot]
-\;\mid\; K\,;\,e
 \;\mid\; \textsf{let}\;x = K\;\textsf{in}\;e
 \;\mid\; K + e \;\mid\; v + K
-\;\mid\; K == e \;\mid\; v == K
 \;\mid\; \textsf{if}\;K\;\textsf{then}\;e\;\textsf{else}\;e
 \;\mid\; \setc{l}{K}.
 \]
