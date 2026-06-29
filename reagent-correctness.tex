@@ -387,34 +387,10 @@ from just after $\bbegin$ without re-opening it.
 \section{A declarative semantics for internal consistency}
 \label{sec:declarative}
 
-In a single-thread, mutual-exclusion, retry, $\forall$ program $P$: either $P$ never executes \texttt{retry}, or it executes \texttt{retry} infinitely often. I do not have a concrete proof of it, but the state the thread restarts from is $\sigma(t), \hat{E(t)}$, both fixed at \texttt{begin} and never mutated, and nothing else can change $\sigma$. Therefore, every attempt starts from an identical configuration; determinism makes every attempt an identical replay. With the constraint for our phase 1, I do not think we can have a ``retry exactly once'' mechanism. Also, the number of threads $n$ is irrelevant because the transaction holds the lock across its retries. For a ``retry exactly once'' mechanism, we at least need two threads in a transaction area. Let's call one a \texttt{waker}. For a waker to exist, some other thread must change $l$ between the re-attempts while $A$ is in mid-transaction. We can also consider one more thing: the \texttt{retry} releases the lock, which I have tried to capture in the \textsc{Retry-Alt}. It sets $\lambda(t) = \bot$, aborts and blocks, letting another transaction commit a change, and then re-acquires the lock and re-runs.
 
-Following Cerone and Gotsman, we record one transactional run as a
-\emph{history}: a set of events $e = (\mathit{id}, o)$ totally ordered by program
-order $\po$, where each operation $o$ is a read $\rdev{l}{v}$, a write
-$\wrev{l}{v}$, or a retry marker $\retryev$. We write $\HEvent_l$ for the read
-and write events on location $l$, $\po^{-1}(e) = \{f \mid f \pob e\}$ for the
-events preceding $e$, and $R(E)$ for the retry events of the run. Their internal
-consistency axiom requires every read to return the value of the
-program-order-latest operation on the same location that precedes it:
-\[
-\forall e.\ \forall l,v.\quad
-\bigl(e = (\_,\rdev{l}{v}) \,\wedge\, \po^{-1}(e)\cap\HEvent_l \neq \emptyset\bigr)
-\implies
-\maxpo\bigl(\po^{-1}(e)\cap\HEvent_l\bigr) = (\_,\anyop{l}{v}),
-\tag{\textsc{Int}}
-\]
-where $\anyop{l}{v}$ abbreviates ``a read \emph{or} a write of $v$ on $l$''.
-
-Because \textsc{Retry-Alt} sends the thread back to $\bbegin$ --- discarding the
-attempt's writes, releasing the lock, and re-reading from a \emph{fresh
-snapshot} --- every read must be redone in the new attempt, and a read may no
-longer depend on anything observed before the retry. We capture this by keeping,
-for a read $e$, only the preceding operations on $l$ that lie in its
-\emph{current attempt}: those not separated from $e$ by a retry event,
-and  replacing the predecessor set of \textsc{Int} with $\att_l(e)$:
-all events f that (1) precede e in program order, (2) touch l, and (3) have no retry between them and e.
-
+%%
+WIP
+%%
 (still trying to figure it out)
 
 
