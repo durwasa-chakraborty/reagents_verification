@@ -35,10 +35,12 @@
 \newcommand{\rulename}[1]{\textsc{\small #1}}
 
 %% ---- evaluation-context notation ----
-%% K is reserved for continuations; an evaluation context is written E with a
-%% down-arrow subscript and the hole filled via solid (double) brackets: E_\downarrow[[ e ]].
-\newcommand{\ectx}{E_{\downarrow}}
-\newcommand{\ehole}[1]{\ectx\llbracket #1 \rrbracket}
+%% Evaluation contexts get their own metavariable H (script), kept distinct from
+%% E (the thread->expr map). The hole is filled with plain double square
+%% brackets H[[ e ]] -- the Oxford brackets [[ ]] are reserved for denotational
+%% semantics, and these operational rules are not denotational.
+\newcommand{\ectx}{\mathcal{H}}
+\newcommand{\ehole}[1]{\ectx[[\, #1 \,]]}
 %% runtime get/set actions: they record the value read/written and the
 %% transaction token t, written get(l,v)@t and set(l,v)@t.
 \newcommand{\getev}[3]{\textsf{get}(#1,#2)\,@\,#3}
@@ -151,86 +153,59 @@ expression currently being evaluated by that thread.
 
 \end{itemize}
 
+Because the state is so lean, the rules need only a couple of premises each, so
+we keep them as inference rules (premises over a conclusion transition) and lay
+them out inline. In every rule the scheduled thread is $t$, with
+$E(t)=\ehole{r}$ for the redex $r$; the conclusion rewrites that redex in place,
+$E' = E[t \mapsto \ehole{\cdot}]$, and the label above the arrow records the
+emitted action.
+
 \begin{figure}[ht]
 \small
-
-\raggedright$\textrm{\sc{[Get]}}$
-\[
-\inferrule{
-t \in dom(E) \\
-E(t)=\ehole{\getc{l}} \\
-\lambda = t \\
-\sigma(l)=v \\
-E' = E[t \mapsto \ehole{v}]
+\begin{mathpar}
+\inferrule*[left=\textsc{Get}]{
+  E(t)=\ehole{\getc{l}} \\ \lambda = t \\ \sigma(l)=v
+}{
+  \langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
+  \xrightarrow{\getev{l}{v}{t}}
+  \langle\sigma,\lambda,E[t\mapsto\ehole{v}],\hat{\sigma},\hat{E}\rangle
 }
-{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\getev{l}{v}{t}}
- \langle\sigma,\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
-\]
-
-\raggedright$\textrm{\sc{[Set]}}$
-\[
-\inferrule{
-t \in dom(E) \\
-E(t)=\ehole{\setc{l}{v}} \\
-\lambda = t \\
-\sigma'=\sigma[l \mapsto v] \\
-E' = E[t \mapsto \ehole{\unit}]
+\and
+\inferrule*[left=\textsc{Set}]{
+  E(t)=\ehole{\setc{l}{v}} \\ \lambda = t
+}{
+  \langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
+  \xrightarrow{\setev{l}{v}{t}}
+  \langle\sigma[l\mapsto v],\lambda,E[t\mapsto\ehole{\unit}],\hat{\sigma},\hat{E}\rangle
 }
-{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\setev{l}{v}{t}}
- \langle\sigma',\lambda,E',\hat{\sigma},\hat{E}\rangle\\}
-\]
-
-\raggedright$\textrm{\sc{[Begin]}}$
-\[
-\inferrule{
-t \in dom(E) \\
-E(t)=\ehole{\bbegin} \\
-\lambda = \bot \\
-\lambda'= t \\
-\hat{\sigma}'=\sigma \\
-\hat{E}'=\ehole{\unit} \\
-E' = E[t \mapsto \ehole{\unit}]
+\and
+\inferrule*[left=\textsc{Begin}]{
+  E(t)=\ehole{\bbegin} \\ \lambda = \bot
+}{
+  \langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
+  \xrightarrow{\bbegin\,@\,t}
+  \langle\sigma,t,E[t\mapsto\ehole{\unit}],\sigma,\ehole{\unit}\rangle
 }
-{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\bbegin\,@\,t}
- \langle\sigma,\lambda',E',\hat{\sigma}',\hat{E}'\rangle\\}
-\]
-
-\raggedright$\textrm{\sc{[End]}}$
-\[
-\inferrule{
-t \in dom(E) \\
-E(t)=\ehole{\eend} \\
-\lambda = t \\
-\lambda'= \bot \\
-E' = E[t \mapsto \ehole{\unit}]
+\and
+\inferrule*[left=\textsc{End}]{
+  E(t)=\ehole{\eend} \\ \lambda = t
+}{
+  \langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
+  \xrightarrow{\eend\,@\,t}
+  \langle\sigma,\bot,E[t\mapsto\ehole{\unit}],\hat{\sigma},\hat{E}\rangle
 }
-{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\eend\,@\,t}
- \langle\sigma,\lambda',E',\hat{\sigma},\hat{E}\rangle\\}
-\]
-
-
-
-\raggedright$\textrm{\sc{[Retry]}}$
-\[
-\inferrule{
-t \in dom(E) \\
-E(t)=\ehole{\retry} \\
-\lambda = t \\
-\sigma' = \hat{\sigma} \\
-\lambda'= \bot \\
-E' = E[t \mapsto (\bbegin \,;\, \hat{E})]
+\and
+\inferrule*[left=\textsc{Retry}]{
+  E(t)=\ehole{\retry} \\ \lambda = t
+}{
+  \langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
+  \xrightarrow{\retry\,@\,t}
+  \langle\hat{\sigma},\bot,E[t\mapsto(\bbegin\,;\,\hat{E})],\hat{\sigma},\hat{E}\rangle
 }
-{\langle\sigma,\lambda,E,\hat{\sigma},\hat{E}\rangle
- \xrightarrow{\retry\,@\,t}
- \langle\sigma',\lambda',E',\hat{\sigma},\hat{E}\rangle\\}
-\]
-
-
-\caption{Semantics of Reagent commands}
+\end{mathpar}
+\caption{Semantics of Reagent commands. Each rule fires on the redex of the
+scheduled thread $t$ and rewrites it in place; unlisted pentuple fields are
+unchanged.}
 \label{fig:semantics}
 \end{figure}
 
@@ -300,12 +275,11 @@ We assume the scheduler is \emph{fair}.
 \subsection{Evaluation contexts}
 
 An evaluation context $\ectx$ is an expression containing a single
-hole $[\cdot]$ that marks exactly where the next reduction step occurs. To
-avoid confusion, the notation $\ectx$ is used here in the
-same spirit as the small-step evaluation relation $X \downarrow Y$ (signifying
-that $X$ evaluates to $Y$).
-I just wanted to separate this one specific notation of evaluation context from $E$, which represents a mapping from
-($\mathit{Tid}$) to expressions ($\mathit{Expr}$).
+hole $[\cdot]$ that marks exactly where the next reduction step occurs. We give
+the evaluation context its own metavariable $\ectx$ precisely to keep it
+separate from $E$, which represents a mapping from thread identifiers
+($\mathit{Tid}$) to expressions ($\mathit{Expr}$); the two are distinct objects
+and should not be conflated.
 \[
 \ectx \;::=\; [\cdot]
 \;\mid\; \ectx\,;\,e
@@ -337,10 +311,10 @@ reinstates.
 the snapshot $\hat{\sigma}$, releases the lock ($\lambda = \bot$), and
 re-arms $t$ as $\bbegin\,;\,\hat{E}$ so that the thread must re-acquire the
 lock through $\textsc{Begin}$ before re-running. I tried to capture the idea of taking a fresh snapshot in the
-process. Since, $\hat{E} = E_{\downarrow,0}\llbracket\unit\rrbracket$ is the body saved by
-$\textsc{Begin}$ (where $E_{\downarrow,0}$ is the context at the opening $\bbegin$), the
+process. Since, $\hat{E} = \mathcal{H}_0[[\,\unit\,]]$ is the body saved by
+$\textsc{Begin}$ (where $\mathcal{H}_0$ is the context at the opening $\bbegin$), the
 re-armed expression $\bbegin\,;\,\hat{E}$ reconstructs the original
-transaction and reduces back to $E_{\downarrow,0}\llbracket\bbegin\rrbracket$.
+transaction and reduces back to $\mathcal{H}_0[[\,\bbegin\,]]$.
 
 \subsection{Administrative reductions}
 
@@ -390,12 +364,58 @@ from just after $\bbegin$ without re-opening it.
 \label{sec:declarative}
 
 
+
 %%
 WIP
 %%
 (still trying to figure it out)
+=======
+Fix a single run as a history: a set of events $E$ totally ordered by program
+order $\po$, with the retry events written $R(E) \subseteq E$. Because at most
+one transaction is live under mutual exclusion --- the lock is held across
+retries --- one such $E$ suffices, so we bind it once here and let every
+quantifier below range over it.
+
+\[
+\forall e \in E.\ \forall l,v.\quad
+\bigl(e = (\_,\rdev{l}{v}) \,\wedge\, \po^{-1}(e)\cap\HEvent_l \neq \emptyset\bigr)
+\implies
+\maxpo\bigl(\po^{-1}(e)\cap\HEvent_l\bigr) = (\_,\anyop{l}{v}),
+\tag{\textsc{Int}}
+\]
+
+where $\anyop{l}{v}$ abbreviates ``a read \emph{or} a write of $v$ on $l$''.
+
+This has been modified to the following specification.
+
+\[
+\att_l(e) \;=\; \bigl\{\, f \;\mid\; f \pob e \;\wedge\; f \in \HEvent_l \;\wedge\;
+\neg\,\exists\, r \in R(E).\ f \pob r \pob e \,\bigr\}
+\]
+\[
+\forall e \in E.\ \forall l,v.\quad
+\bigl(e = (\_,\rdev{l}{v}) \,\wedge\, \att_l(e) \neq \emptyset\bigr)
+\implies
+\maxpo\bigl(\att_l(e)\bigr) = (\_,\anyop{l}{v}).
+\tag{\textsc{Int}$^{r}$}
+\]
+
+Dropping visibility and letting a read observe the arbitration-latest earlier
+writer gives the external-consistency axiom in its strict-serializable form
+(\textsc{Vis} is total and coincides with \textsc{Ar}, so only \textsc{Ar}
+remains):
+\[
+\begin{aligned}
+\forall T \in H.\ \forall x,n.\quad T \vdash \mathsf{Read}\ x : n \implies {}
+&\bigl(\{\, S \in H \mid S <_{\mathrm{ar}} T \,\wedge\, S \vdash \mathsf{Write}\ x : \_ \,\} = \emptyset \,\wedge\, n = 0\bigr)\\[2pt]
+&{}\vee\ \mathrm{max}_{\mathrm{ar}}\{\, S \in H \mid S <_{\mathrm{ar}} T \,\wedge\, S \vdash \mathsf{Write}\ x : \_ \,\} \vdash \mathsf{Write}\ x : n,
+\end{aligned}
+\tag{\textsc{Ext}}
+\]
 
 
+
+WIP
 
 
 
