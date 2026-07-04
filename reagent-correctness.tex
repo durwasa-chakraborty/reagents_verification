@@ -118,6 +118,8 @@ e     & ::= & v \mid x          & \text{values, variables}\\
 \end{array}
 \]
 
+In my understanding the abstract syntax doesn't change, because \texttt{get(l,v)@t} and \texttt{set(l,v)@t} are runtime actions. The value $v$ is the value
+observed at execution time and t is the active transaction token. Neither of which a programmer can write, so the source commands stay \texttt{get(l)} and \texttt{set(l,v)}.
 
 
 \subsection{Concrete syntax, precedence, and lexical conventions}
@@ -240,12 +242,12 @@ $\textrm{\sc{Set}}$ updates a shared location. When thread $t$ (with $\lambda = 
 $\setc{l}{v}$, the value stored at location $l$ is updated to $v$ and the
 command returns the unit value $\unit$; the emitted action $\setev{l}{v}{t}$ records the written value $v$ and the token $t$.
 
-$\textrm{\sc{Begin}}$ starts a transaction. No transaction may currently be live ($\lambda = \bot$); transactions are therefore mutually exclusive, with at most one live transaction across all threads at any time. $\textrm{\sc{Begin}}$ creates a new token $t$ for the transaction and records it by setting $\lambda := t$, and the current store and expression are saved in $\hat{\sigma}$ and $\hat{E}$ respectively. These saved values can later be used by $\textrm{\sc{Retry}}$.
+$\textrm{\sc{Begin}}$ starts a transaction. No transaction may currently be alive ($\lambda = \bot$); transactions are therefore mutually exclusive, with at most one live transaction across all threads at any time. $\textrm{\sc{Begin}}$ creates a new token $t$ for the transaction and records it by setting $\lambda := t$, and the current store and expression are saved in $\hat{\sigma}$ and $\hat{E}$ respectively. These saved values can later be used by $\textsc{Retry}$.
 
-$\textrm{\sc{End}}$ commits the current transaction, resetting $\lambda$ to $\bot$. The store is unchanged.
+$\textsc{End}$ commits the current transaction, resetting $\lambda$ to $\bot$. The store is unchanged.
 
 
-$\textrm{\sc{Retry}}$ is retrying with \emph{lock-releasing}. Instead of keeping the thread inside the transaction and spinning, it (i) rolls the store back to the snapshot $\hat{\sigma}$, so the abandoned attempt has no effect; (ii) sets $\lambda=\bot$, \emph{releasing the single critical section} so that another thread may now $\bbegin$ and run; and (iii) re-arms $t$'s expression as $\bbegin\,;\,\hat{E}$, so that when $t$ is next scheduled it must re-acquire the lock through $\textrm{\sc{Begin}}$ before re-running the saved body. Because $t$ relinquishes the lock and takes a fresh snapshot on its next $\bbegin$, a write committed by another thread in the meantime is visible to the new attempt.
+$\textsc{Retry}$ is retrying with \emph{lock-releasing}. Instead of keeping the thread inside the transaction and spinning, it (i) rolls the store back to the snapshot $\hat{\sigma}$, so the abandoned attempt has no effect; (ii) sets $\lambda=\bot$, \emph{releasing the single critical section} so that another thread may now $\bbegin$ and run; and (iii) re-arms $t$'s expression as $\bbegin\,;\,\hat{E}$, so that when $t$ is next scheduled it must re-acquire the lock through $\textsc{Begin}$ before re-running the saved body. Because $t$ relinquishes the lock and takes a fresh snapshot on its next $\bbegin$, a write committed by another thread in the meantime is visible to the new attempt.
 
 
 
@@ -280,10 +282,10 @@ $\lambda = \bot$, the rule applies and sets $\lambda := t_2$. Thread $t_2$ has n
 $t_1$ is poised at its own $\bbegin$, but its $\textsc{Begin}$ rule requires
 $\lambda = \bot$, whereas $\lambda = t_2$. The premise fails, so $t_1$ \emph{cannot
 make progress}: there is only one lock, and it forbids $t_1$ from entering the
-critical section while $t_2$ holds it. (Every tx rule
+critical section while $t_2$ holds it. Every tx rule
 $\textsc{Get}$, $\textsc{Set}$, $\textsc{End}$, $\textsc{Retry}$  carries the
 premise $\lambda = t$, so the only thread that can step transactionally is the
-current lock holder $t_2$.)
+current lock holder $t_2$.
 \item Say a context switch happens, and the thread holding the
 transaction, $t_2$, is brought back up. It continues until it either commits
 ($\textsc{End}$, which sets $\lambda := \bot$) or retries
@@ -302,7 +304,7 @@ hole $[\cdot]$ that marks exactly where the next reduction step occurs. To
 avoid confusion, the notation $\ectx$ is used here in the
 same spirit as the small-step evaluation relation $X \downarrow Y$ (signifying
 that $X$ evaluates to $Y$).
-I just wated to separate this one specific notation of evaluation context from $E$, which represents a mapping from
+I just wanted to separate this one specific notation of evaluation context from $E$, which represents a mapping from
 ($\mathit{Tid}$) to expressions ($\mathit{Expr}$).
 \[
 \ectx \;::=\; [\cdot]
