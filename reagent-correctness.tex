@@ -1,18 +1,15 @@
-\documentclass[11pt]{article}
+\documentclass[manuscript,nonacm]{acmart}
 
-\usepackage[margin=1in]{geometry}
-\usepackage{amsmath,amssymb,amsthm}
+%% acmart already provides amsmath, amssymb, amsthm, booktabs, xcolor, hyperref, graphicx.
 \usepackage{mathtools}
 \usepackage{stmaryrd}      % \llbracket, \rrbracket
 \usepackage{mathpartir}    % \inferrule for SOS rules
 \usepackage{listings}
-\usepackage{xcolor}
-\usepackage{booktabs}
-\usepackage{enumitem}
-\usepackage[hidelinks]{hyperref}
-\usepackage{comment}
 \usepackage{tikz}
 \usetikzlibrary{fit,positioning,arrows.meta}
+%% acmart predefines 'definition'; it does not define 'remark', so we add it.
+\theoremstyle{acmdefinition}
+\newtheorem{remark}{Remark}
 
 %% ---- notation ----
 \newcommand{\Loc}{\mathit{Loc}}
@@ -47,10 +44,6 @@
 \newcommand{\getev}[3]{\textsf{get}(#1,#2)\,@\,#3}
 \newcommand{\setev}[3]{\textsf{set}(#1,#2)\,@\,#3}
 \newcommand{\elided}{\mathrm{actions}}
-\newtheorem{definition}{Definition}
-\theoremstyle{remark}
-\newtheorem*{remark}{Remark}
-\theoremstyle{plain}
 
 %% ---- abbreviations used in the worked-examples section ----
 \newcommand{\st}[1]{[\,l\,{\mapsto}\,#1\,]}          % store over the single location l
@@ -99,15 +92,24 @@
 }
 \newcommand{\code}[1]{\lstinline[basicstyle=\ttfamily]{#1}}
 
-\title{\textbf{The Reagent Language}\\[2pt]}
-\date{\today}
+\title{The Reagent Language}
+
+\author{Durwasa Chakraborty}
+\email{durwasa.chakraborty@gmail.com}
+\affiliation{%
+  \institution{TODO: institution}
+  \country{India}
+}
+
+\keywords{concurrency, transactional memory, operational semantics, internal consistency}
 
 \begin{document}
-\maketitle
 
 \begin{abstract}
 TODO
 \end{abstract}
+
+\maketitle
 
 \section{Abstract syntax}
 
@@ -475,8 +477,9 @@ C_0 \longrightarrow C_1 \longrightarrow \cdots \longrightarrow C_n ,
 \]
 in which every step $C_k \longrightarrow C_{k+1}$ is derivable from
 Figure~\ref{fig:semantics} and is either a \emph{transition} (a command rule
-$\textsc{Get},\textsc{Set},\textsc{Begin},\textsc{End},\textsc{Retry}$) or an
-\emph{administrative reduction} (Section~\ref{subsec:semantics}).
+$\textsc{Get}$, $\textsc{Set}$, $\textsc{Begin}$, $\textsc{End}$, or
+$\textsc{Retry}$) or an \emph{administrative reduction}
+(Section~\ref{subsec:semantics}).
 \end{definition}
 
 \begin{definition}[Trace]
@@ -706,17 +709,17 @@ In my understanding the abstract syntax doesn't change, because \texttt{get(l,v)
 observed at execution time and t is the active transaction identifier. Neither of which a programmer can write, so the source commands stay \texttt{get(l)} and \texttt{set(l,v)}.
 
 
-\begin{thebibliography}{9}
+\begin{thebibliography}{}
 
-\bibitem{HerlihyWing1990}
-Maurice P.\ Herlihy and Jeannette M.\ Wing.
-\newblock Linearizability: a correctness condition for concurrent objects.
-\newblock \emph{ACM Trans.\ Program.\ Lang.\ Syst.}, 12(3):463--492, 1990.
+\bibitem[Cerone et al.(2015)]{CeroneBernardiGotsman2015}
+Andrea Cerone, Giovanni Bernardi, and Alexey Gotsman. 2015.
+\newblock A Framework for Transactional Consistency Models with Atomic Visibility.
+\newblock In \emph{CONCUR 2015} (LIPIcs, Vol.~42). 58--71.
 
-\bibitem{CeroneBernardiGotsman2015}
-Andrea Cerone, Giovanni Bernardi, and Alexey Gotsman.
-\newblock A framework for transactional consistency models with atomic visibility.
-\newblock In \emph{CONCUR 2015}, LIPIcs 42, pages 58--71, 2015.
+\bibitem[Herlihy and Wing(1990)]{HerlihyWing1990}
+Maurice P. Herlihy and Jeannette M. Wing. 1990.
+\newblock Linearizability: A Correctness Condition for Concurrent Objects.
+\newblock \emph{ACM Trans. Program. Lang. Syst.} 12, 3 (1990), 463--492.
 
 \end{thebibliography}
 
