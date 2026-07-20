@@ -1,5 +1,5 @@
 \documentclass[manuscript,nonacm]{acmart}
-
+\usepackage[switch]{lineno}
 %% acmart already provides amsmath, amssymb, amsthm, booktabs, xcolor, hyperref, graphicx.
 \usepackage{mathtools}
 \usepackage{stmaryrd}      % \llbracket, \rrbracket
@@ -17,10 +17,10 @@
 \newcommand{\Var}{\mathit{Var}}
 \newcommand{\Val}{\mathit{Val}}
 \newcommand{\ThId}{\mathit{ThId}}   % thread identifiers
-\newcommand{\TrId}{\mathit{TrId}}   % transaction identifiers
+\newcommand{\TrId}{\mathit{TxId}}   % transaction identifiers
 \newcommand{\Tid}{\mathit{Tid}}
 \newcommand{\ThId}{\mathit{ThId}}   % thread identifiers (the scheduled thread i)
-\newcommand{\TrId}{\mathit{TxId}}   % transaction identifiers (the live transaction t)
+\newcommand{\TxId}{\mathit{TxId}}   % transaction identifiers (the live transaction t)
 \newcommand{\Cmd}{\mathit{Cmd}}
 \newcommand{\Expr}{\mathit{Expr}}
 \newcommand{\store}{\sigma}
@@ -105,7 +105,6 @@
 }
 
 \keywords{concurrency, transactional memory, operational semantics, internal consistency}
-
 \begin{document}
 \linenumbers
 \begin{abstract}
@@ -342,6 +341,7 @@ The set of \emph{initial configurations} is
 \;:\; \sigma_0, E_0 \text{ meet the conditions below} \,\bigr\}
 \;\subseteq\; \Phi ,
 \]
+
 and a run may start from any $C_0 \in \mathcal{I}$.
 \begin{itemize}
 \item \emph{Locations are fixed and finite.} $\Loc$ is a fixed finite set and
