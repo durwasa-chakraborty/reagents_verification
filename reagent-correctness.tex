@@ -16,7 +16,6 @@
 \newcommand{\Loc}{\mathit{Loc}}
 \newcommand{\Var}{\mathit{Var}}
 \newcommand{\Val}{\mathit{Val}}
-\newcommand{\ThId}{\mathit{ThId}}   % thread identifiers
 \newcommand{\TrId}{\mathit{TxId}}   % transaction identifiers
 \newcommand{\Tid}{\mathit{Tid}}
 \newcommand{\ThId}{\mathit{ThId}}   % thread identifiers (the scheduled thread i)
@@ -71,6 +70,8 @@
 \newcommand{\att}{\mathit{att}}
 \newcommand{\anyop}[2]{\mathord{\_}(#1,#2)} % read(x,n) or write(x,n)
 \newcommand{\pob}{\xrightarrow{\po}}        % program-order edge
+\newcommand{\vs}[1]{\textcolor{blue}{\textbf{[VS:} #1\textbf{]}}}
+%\renewcommand{\vs}[1]{}
 
 %% ---- listings style for the Reagent language ----
 \definecolor{kw}{rgb}{0.10,0.10,0.55}
@@ -149,7 +150,7 @@ Each configuration $C$ in $\Phi$ represents the global state of the program at a
 
 \item \(\theta \in \TrId \cup \{\bot\}\) is the identifier of the live transaction, minted \emph{fresh} by each $\bbegin$; $\theta = \bot$ means no transaction is active. It supplies the tag on the emitted actions --- when $\theta = t$ the labels read $\getev{l}{v}{t}$, $\eend\,@\,t$, and so on.
 
-\item $E : \ThId \rightarrow \Expr$ maps each thread to the expression it is currently evaluating. Since $dom(E)$ is fixed (Section~\ref{sec:init-final}), $E$ is a total map.
+\item $E : \ThId \rightarrow \Expr$ maps each thread to the expression it is currently evaluating. \vs{Remove the next line} Since $dom(E)$ is fixed (Section~\ref{sec:init-final}), $E$ is a total map.
 
 \item $\hat{\sigma}: \Loc \rightarrow \mathbb{N}$ is the snapshot of the store taken when the live transaction began, used to roll the store back on restart.
 
@@ -172,7 +173,7 @@ snapshot $\hat{\sigma}$ and saved body $\hat{E}$ are always defined when such a 
 fires. The conclusion rewrites that redex in place and \emph{frames} the rest of the
 table, $E' = E[i \mapsto \ehole{\cdot}]$ with $E'(j) = E(j)$ for every $j \neq i$;
 the label above the arrow is tagged with the live transaction id $t$ (the value of
-$\theta$). Every transactional rule \textsc{Get} \textsc{Set}\textsc{End} \textsc{Retry} carries the premise
+$\theta$). Every transactional rule \textsc{Get} \vs{space bw SET and END} \textsc{Set}\textsc{End} \textsc{Retry} carries the premise
 $\lambda = i$ and $\theta = t$. Since $i \in \ThId$ and $t \in \TrId$, these premises imply
 $\lambda \neq \bot$ and $\theta \neq \bot$.
 
@@ -346,7 +347,8 @@ and a run may start from any $C_0 \in \mathcal{I}$.
 \begin{itemize}
 \item \emph{Locations are fixed and finite.} $\Loc$ is a fixed finite set and
 $\sigma_0 : \Loc \rightarrow \mathbb{N}$ is any initial store: $\forall l \in \Loc.\
-\sigma_0(l) = n$ for some $n \in \mathbb{N}$. So $\mathcal{I}$ varies with $\sigma_0$.
+\sigma_0(l) = n$ for some $n \in \mathbb{N}$. \vs{KN Sir said n should be 0 for
+all locations} So $\mathcal{I}$ varies with $\sigma_0$.
 \item \emph{Threads are fixed and finite.} $dom(E_0) = \ThId$ is a fixed finite set
 of thread identifiers, and $E_0 : \ThId \rightarrow \Expr$ is the initial program,
 mapping each thread to its starting expression. No thread is ever created or
@@ -392,7 +394,7 @@ well-formedness as a separate side condition.
 There is a single shared location $l$; we write $\st{n}$ for the store with
 $\sigma(l)=n$. The configuration is the six-tuple
 $\langle\sigma,\lambda,\theta,E,\hat{\sigma},\hat{E}\rangle$ of
-Section~\ref{subsec:semantics}, with $\lambda$ the owner thread and $\theta$ the live
+Section~\ref{subsec:semantics} \vs{??} , with $\lambda$ the owner thread and $\theta$ the live
 transaction id. Thread identifiers are $1,2\in\ThId$; $E$ is shown as a map
 $\emap{1{:}e_1,\,2{:}e_2}$. Every run starts from
 $C_0=\langle \st{0},\ \bot,\ \bot,\ E_0,\ \st{0},\ \unit\rangle$.
@@ -463,13 +465,19 @@ holds by construction.
 
 Throughout, sets are written with capitals --- $E$ (the events of a transaction),
 $H$ (a history), $\mathbf{T}$ (the transactions of a trace). We range over
-transaction identifiers with $t, t_1, t_2, \dots$ and over transactions with
-$T, S$. The examples all refer to one running trace,
+transaction identifiers with $t, t_1, t_2, \dots$ \vs{remove $t$ or start with
+$t_0$} and over transactions with
+$T, S$ \vs{What is $S$? The notations $\mathbf{T}$ which represents transactions
+of a trace and $T$ which is a single transaction is confusing. It is difficult to
+read the latter part of this section.} The examples all refer to one running trace,
 \[
 \rho \;=\; \bbegin\,@\,t_1 \cdot \getev{l}{0}{t_1} \cdot \tau_1 \cdot \tau_2 \cdot
 \setev{l}{1}{t_1} \cdot \eend\,@\,t_1 \cdot \bbegin\,@\,t_2 \cdot \getev{l}{1}{t_2}
 \cdot \retry\,@\,t_2 .
 \]
+
+\vs{What is $\tau_1$ and $\tau_2$? I think they are administrative steps. 
+Explain the notations during their first use.}
 
 \subsection{Trace}
 \begin{definition}[Trace]
@@ -478,7 +486,7 @@ The \emph{trace} of a run $C_0 \xrightarrow{\ell_1} C_1 \xrightarrow{\ell_2} \cd
 configurations, $\ell_1\,\ell_2\cdots\ell_k$. Each label $\ell$ is either a
 \emph{transition label} --- one of $\bbegin\,@\,t$, $\getev{l}{v}{t}$,
 $\setev{l}{v}{t}$, $\eend\,@\,t$, $\retry\,@\,t$ --- or an \emph{administrative
-step} $\tau_i$, the label of an internal reduction the transaction takes while
+step} $\tau_i$ \vs{add reference to the adm redn section}, the label of an internal reduction the transaction takes while
 evaluating its body (a $\adm$-step: a $\textsf{let}$-substitution, an arithmetic
 step, a conditional). A run may take \emph{arbitrarily many} administrative steps
 in a row, so they are indexed $\tau_1, \tau_2, \tau_3, \dots$
@@ -493,7 +501,8 @@ take more.
 
 \subsection{Transaction}
 \begin{definition}[Transaction]
-A \emph{transaction} is a pair $T = (E,\po)$.
+A \emph{transaction} is a pair $T = (E,\po)$. \vs{Here, you can explicitly mention
+that tx IDs of all the events in $E$ are the same.}
 \begin{itemize}
 \item $E$ is a set of pairs $(\iota, e)$ --- an identifier $\iota$ together with an
 event $e$ tagged with the transaction. An event is one of $\bbegin\,@\,t$,
@@ -508,11 +517,15 @@ $(a,b) \in \po$, it is
   \item \emph{antisymmetric}: $a \prec b$ and $b \prec a$ imply $a = b$;
   \end{itemize}
 and any two distinct events are comparable (which makes it \emph{total}).
+\vs{Add this as a separate property called \textbf{totality} [$a \prec b \vee b \prec a$].}
 \end{itemize}
 \end{definition}
 
 \begin{example}
 Transaction $t_1$ of $\rho$ is $T_{t_1} = (E,\po)$ with
+\vs{Shouldn't it be $\mathbf{T}_{t_1} = (E,\po)$ and not 
+$T_{t_1} = (E,\po)$? That's why I said earlier $\mathbf{T}$ and
+$T$ are confusing.}
 \[
 E = \{\, (\iota_0, \bbegin\,@\,t_1),\ (\iota_1, \getev{l}{0}{t_1}),\
          (\iota_2, \setev{l}{1}{t_1}),\ (\iota_3, \eend\,@\,t_1) \,\},
@@ -530,7 +543,7 @@ transactions,
 \max(T) = \text{the } \po\text{-greatest event of } E .
 \]
 
-\begin{definition}[Committed transaction]
+\begin{definition}[Committed transaction] 
 A transaction $T$ is \emph{committed} when its least event is a begin and its
 greatest event is an end:
 \[
@@ -540,6 +553,8 @@ greatest event is an end:
 Because $\min$ and $\max$ are the extremes of $\po$, this forces $\bbegin\,@\,t$ to
 precede $\eend\,@\,t$ and every event of $T$ to lie between them. We write
 $\mathrm{Committed}$ for the set of committed transactions.
+\vs{Use something like Committed($\mathbf{T}$)) to represent a set of 
+committed transactions from a trace $\mathbf{T}$}.
 \end{definition}
 
 \begin{example}
@@ -550,13 +565,24 @@ greatest an end, so $T_{t_1}$ is committed.
 
 \subsection{Uncommitted transaction}
 \begin{definition}[Uncommitted transaction]
-The \emph{uncommitted} transactions are exactly those that are not committed:
+\vs{Change the explanation. You should take a single transaction  $T = (E,\po)$
+like in committed transaction defn. and say when it is called uncommitted. The below explanation
+tells how to extract a set of uncommitted transactions from a trace $\mathbf{T}$.\\
+Define uncommitted transaction as a transaction that does not have a matching end/
+max(T) is not an end.\\ After this, you can say Uncommitted($\mathbf{T}$) = 
+$\mathbf{T} \setminus \mathrm{Committed}(\mathbf{T})$}.
+
+A transaction $T=(E,\po)$ is \emph{uncommitted} if its maximal event
+$\max(T)$ is not an $\eend\,@\,t$ event. Equivalently, $T$ does not have
+a matching end event (e.g., its maximal event is a $\retry\,@\,t$, or it
+has no end event at all).
+
+For a trace $\mathbf{T}$, the set of uncommitted transactions is
 \[
-\mathbf{T} \setminus \mathrm{Committed} .
+\mathrm{Uncommitted}(\mathbf{T})
+=
+\mathbf{T}\setminus \mathrm{Committed}(\mathbf{T}).
 \]
-Equivalently, $T$ is uncommitted when $\min(T)$ is not a $\bbegin\,@\,t$ or
-$\max(T)$ is not an $\eend\,@\,t$ (its greatest event is a $\retry\,@\,t$, or it has
-no end at all).
 \end{definition}
 
 \begin{example}
@@ -601,5 +627,60 @@ H = (\mathbf{T},\ \mathrm{AR}), \qquad
 i.e.\ $T_{t_1} <_{\mathrm{AR}} T_{t_2}$, with $T_{t_1}$ committed and $T_{t_2}$
 uncommitted.
 \end{example}
+
+
+\vs{You can use the below format to denote administrative reductions}.
+\subsection{Local (pure) reductions}
+\label{subsec:local}
+Addition, \code{let}, and \code{if} never touch the shared store or
+transaction state; they rewrite only the expression of the scheduled
+thread. We give them as a separate one-step relation
+\(e \rightsquigarrow e'\) on \emph{redexes}, independent of the
+six-tuple:
+
+\begin{mathpar}
+\inferrule*[left=\textsc{Add}]{
+  n = n_1 + n_2
+}{
+  n_1 + n_2 \rightsquigarrow n
+}
+\and
+\inferrule*[left=\textsc{Let}]{
+}{
+  \textsf{let}\;x = v\;\textsf{in}\;e \rightsquigarrow e[v/x]
+}
+\and
+\inferrule*[left=\textsc{IfTrue}]{
+}{
+  \textsf{if}\;\textsf{true}\;\textsf{then}\;e_1\;\textsf{else}\;e_2 \rightsquigarrow e_1
+}
+\and
+\inferrule*[left=\textsc{IfFalse}]{
+}{
+  \textsf{if}\;\textsf{false}\;\textsf{then}\;e_1\;\textsf{else}\;e_2 \rightsquigarrow e_2
+}
+\end{mathpar}
+
+\subsection{Lifting local reductions into the global transition system}
+\label{subsec:lift}
+
+To connect \(\rightsquigarrow\) with the labeled transition relation
+\(\rightarrow\) on configurations, we add one more rule that lets any
+thread take a silent (unlabeled, or \(\tau\)-labeled) step whenever its
+current expression's redex is a pure one:
+
+\begin{mathpar}
+\inferrule*[left=\textsc{Local}]{
+  E(i)=\ehole{r} \\ r \rightsquigarrow e
+}{
+  \langle\sigma,\lambda,\theta,E,\hat{\sigma},\hat{E}\rangle
+  \xrightarrow{\tau}
+  \langle\sigma,\lambda,\theta,E[i\mapsto\ehole{e}],\hat{\sigma},\hat{E}\rangle
+}
+\end{mathpar}
+\textsc{Local} leaves \(\sigma\), \(\lambda\), \(\theta\), \(\hat{\sigma}\), and
+\(\hat{E}\) untouched. Together, \textsc{Local} plus the five rules of
+Figure~\ref{fig:semantics} give a reduction for every production of the
+expression grammar.
 
 \end{document}
