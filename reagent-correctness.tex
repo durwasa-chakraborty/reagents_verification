@@ -51,6 +51,7 @@
 \newcommand{\st}[1]{[\,l\,{\mapsto}\,#1\,]}          % store over the single location l
 \newcommand{\emap}[1]{\{#1\}}                          % thread map E
 \newcommand{\adm}{\xrightarrow{\;\mathrm{adm}\;}}     % administrative reduction step
+\newcommand{\ladm}[1][]{\ell_{\mathrm{adm}#1}}       % administrative-step label l_adm (opt. index, e.g. \ladm[,1])
 \newcommand{\Abody}{\textsf{let}\;x\,{=}\,\getc{l}\;\textsf{in}\;\setc{l}{x\,{+}\,1}}
 \newcommand{\Bbody}{\textsf{let}\;y\,{=}\,\getc{l}\;\textsf{in}\;
    (\textsf{if}\;y\,\texttt{==}\,0\;\textsf{then}\;(\setc{l}{99}\,;\,\retry)\;
@@ -346,7 +347,7 @@ and a run may start from any $C_0 \in \mathcal{I}$.
 \item \emph{Locations are fixed and finite.} $\Loc$ is a fixed finite set and the
 initial store maps every location to zero: $\sigma_0 : \Loc \rightarrow \mathbb{N}$
 with $\forall l \in \Loc.\ \sigma_0(l) = 0$. So $\sigma_0$ is fixed, and
-$\mathcal{I}$ varies only with the program $E_0$.
+$\mathcal{I}$ varies only with  $\sigma_{0}$.
 \item \emph{Threads are fixed and finite.} $dom(E_0) = \ThId$ is a fixed finite set
 of thread identifiers, and $E_0 : \ThId \rightarrow \Expr$ is the initial program,
 mapping each thread to its starting expression. No thread is ever created or
@@ -470,12 +471,12 @@ transaction whose identifier is $t$. The typographic contrast is deliberate: the
 boldface $\mathbf{T}$ is always the whole set, whereas $T$, $S$, and $T_{t}$ are
 individual transactions drawn from it. The examples all refer to one running trace,
 \[
-\rho \;=\; \bbegin\,@\,t_1 \cdot \getev{l}{0}{t_1} \cdot \tau_1 \cdot \tau_2 \cdot
+\tau \;=\; \bbegin\,@\,t_1 \cdot \getev{l}{0}{t_1} \cdot \ladm[,1] \cdot \ladm[,2] \cdot
 \setev{l}{1}{t_1} \cdot \eend\,@\,t_1 \cdot \bbegin\,@\,t_2 \cdot \getev{l}{1}{t_2}
 \cdot \retry\,@\,t_2 .
 \]
 
-Here $\tau_1$ and $\tau_2$ are \emph{administrative steps}: internal reductions the
+Here $\ladm[,1]$ and $\ladm[,2]$ are \emph{administrative steps}: internal reductions the
 running transaction takes while evaluating its body (the $\adm$-steps of
 Section~\ref{subsec:admin} --- a $\textsf{let}$-substitution, an arithmetic step, a
 conditional). The Trace definition below makes this precise.
@@ -487,16 +488,16 @@ The \emph{trace} of a run $C_0 \xrightarrow{\ell_1} C_1 \xrightarrow{\ell_2} \cd
 configurations, $\ell_1\,\ell_2\cdots\ell_k$. Each label $\ell$ is either a
 \emph{transition label} --- one of $\bbegin\,@\,t$, $\getev{l}{v}{t}$,
 $\setev{l}{v}{t}$, $\eend\,@\,t$, $\retry\,@\,t$ --- or an \emph{administrative
-step} $\tau_i$ (Section~\ref{subsec:admin}), the label of an internal reduction the transaction takes while
+step} $\ladm[,i]$ (Section~\ref{subsec:admin}), the label of an internal reduction the transaction takes while
 evaluating its body (a $\adm$-step: a $\textsf{let}$-substitution, an arithmetic
 step, a conditional). A run may take \emph{arbitrarily many} administrative steps
-in a row, so they are indexed $\tau_1, \tau_2, \tau_3, \dots$
+in a row, so they are indexed $\ladm[,1], \ladm[,2], \ladm[,3], \dots$
 \end{definition}
 
 \begin{example}
-$\rho$ above is a trace. Between $\getev{l}{0}{t_1}$ and $\setev{l}{1}{t_1}$ it
-takes \emph{two} administrative steps --- $\tau_1$ (the $\textsf{let}$-substitution)
-and $\tau_2$ (the addition $0+1 \to 1$) --- and a longer transaction body would
+$\tau$ above is a trace. Between $\getev{l}{0}{t_1}$ and $\setev{l}{1}{t_1}$ it
+takes \emph{two} administrative steps --- $\ladm[,1]$ (the $\textsf{let}$-substitution)
+and $\ladm[,2]$ (the addition $0+1 \to 1$) --- and a longer transaction body would
 take more.
 \end{example}
 
@@ -510,7 +511,7 @@ these events into one transaction.
 event $e$ tagged with the transaction. An event is one of $\bbegin\,@\,t$,
 $\getev{l}{v}{t}$, $\setev{l}{v}{t}$, $\eend\,@\,t$, or $\retry\,@\,t$: the
 transaction's opening, its reads and writes, and its terminator. (Administrative
-steps $\tau_i$ are trace labels, not events, so they are not members of $E$.)
+steps $\ladm[,i]$ are trace labels, not events, so they are not members of $E$.)
 \item $\po$ is a \emph{total order} on the events of $E$. Writing $a \prec b$ for
 $(a,b) \in \po$, it is
   \begin{itemize}
@@ -523,7 +524,7 @@ $(a,b) \in \po$, it is
 \end{definition}
 
 \begin{example}
-Transaction $t_1$ of $\rho$ is the single transaction $T_{t_1} = (E,\po)$ with
+Transaction $t_1$ of $\tau$ is the single transaction $T_{t_1} = (E,\po)$ with
 \[
 E = \{\, (\iota_0, \bbegin\,@\,t_1),\ (\iota_1, \getev{l}{0}{t_1}),\
          (\iota_2, \setev{l}{1}{t_1}),\ (\iota_3, \eend\,@\,t_1) \,\},
@@ -567,7 +568,8 @@ $\max(T)$ is not an $\eend\,@\,t$ event. Equivalently, $T$ does not have
 a matching end event (e.g., its maximal event is a $\retry\,@\,t$, or it
 has no end event at all).
 
-For a trace $\mathbf{T}$, the set of uncommitted transactions is
+For a trace $\tau$ with transaction set $\mathbf{T}$, the set of uncommitted
+transactions is
 \[
 \mathrm{Uncommitted}(\mathbf{T})
 =
@@ -592,7 +594,7 @@ S <_{\mathrm{AR}} T \quad\text{iff}\quad S\text{'s terminator }
 \end{definition}
 
 \begin{example}
-In $\rho$, $\eend\,@\,t_1$ precedes $\bbegin\,@\,t_2$, so $T_{t_1} <_{\mathrm{AR}} T_{t_2}$.
+In $\tau$, $\eend\,@\,t_1$ precedes $\bbegin\,@\,t_2$, so $T_{t_1} <_{\mathrm{AR}} T_{t_2}$.
 \end{example}
 
 \subsection{History}
@@ -608,7 +610,7 @@ order on them.
 \end{definition}
 
 \begin{example}
-The trace $\rho$ yields the history
+The trace $\tau$ yields the history
 \[
 H = (\mathbf{T},\ \mathrm{AR}), \qquad
 \mathbf{T} = \{\, T_{t_1},\ T_{t_2} \,\}, \qquad
@@ -655,7 +657,7 @@ six-tuple:
 
 To connect \(\rightsquigarrow\) with the labeled transition relation
 \(\rightarrow\) on configurations, we add one more rule that lets any
-thread take a silent (unlabeled, or \(\tau\)-labeled) step whenever its
+thread take an administrative step, labeled \(\ladm\), whenever its
 current expression's redex is a pure one:
 
 \begin{mathpar}
@@ -663,7 +665,7 @@ current expression's redex is a pure one:
   E(i)=\ehole{r} \\ r \rightsquigarrow e
 }{
   \langle\sigma,\lambda,\theta,E,\hat{\sigma},\hat{E}\rangle
-  \xrightarrow{\tau}
+  \xrightarrow{\ladm}
   \langle\sigma,\lambda,\theta,E[i\mapsto\ehole{e}],\hat{\sigma},\hat{E}\rangle
 }
 \end{mathpar}
