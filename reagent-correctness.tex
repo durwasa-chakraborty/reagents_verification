@@ -150,7 +150,7 @@ Each configuration $C$ in $\Phi$ represents the global state of the program at a
 
 \item \(\theta \in \TrId \cup \{\bot\}\) is the identifier of the live transaction, minted \emph{fresh} by each $\bbegin$; $\theta = \bot$ means no transaction is active. It supplies the tag on the emitted actions --- when $\theta = t$ the labels read $\getev{l}{v}{t}$, $\eend\,@\,t$, and so on.
 
-\item $E : \ThId \rightarrow \Expr$ maps each thread to the expression it is currently evaluating. \vs{Remove the next line} Since $dom(E)$ is fixed (Section~\ref{sec:init-final}), $E$ is a total map.
+\item $E : \ThId \rightarrow \Expr$ maps each thread to the expression it is currently evaluating.
 
 \item $\hat{\sigma}: \Loc \rightarrow \mathbb{N}$ is the snapshot of the store taken when the live transaction began, used to roll the store back on restart.
 
@@ -173,9 +173,7 @@ snapshot $\hat{\sigma}$ and saved body $\hat{E}$ are always defined when such a 
 fires. The conclusion rewrites that redex in place and \emph{frames} the rest of the
 table, $E' = E[i \mapsto \ehole{\cdot}]$ with $E'(j) = E(j)$ for every $j \neq i$;
 the label above the arrow is tagged with the live transaction id $t$ (the value of
-$\theta$). Every transactional rule \textsc{Get} \vs{space bw SET and END} \textsc{Set}\textsc{End} \textsc{Retry} carries the premise
-$\lambda = i$ and $\theta = t$. Since $i \in \ThId$ and $t \in \TrId$, these premises imply
-$\lambda \neq \bot$ and $\theta \neq \bot$.
+$\theta$).
 
 \begin{figure}[ht]
 \small
@@ -303,7 +301,7 @@ re-arms $E(i)$ as $\bbegin\,;\,\hat{E}$ so that the thread must re-acquire the
 lock through $\textsc{Begin}$ before re-running.
 
 \subsection{Administrative reductions}
-
+\label{subsec:admin}
 
 \[
 \begin{aligned}
@@ -345,10 +343,10 @@ The set of \emph{initial configurations} is
 
 and a run may start from any $C_0 \in \mathcal{I}$.
 \begin{itemize}
-\item \emph{Locations are fixed and finite.} $\Loc$ is a fixed finite set and
-$\sigma_0 : \Loc \rightarrow \mathbb{N}$ is any initial store: $\forall l \in \Loc.\
-\sigma_0(l) = n$ for some $n \in \mathbb{N}$. \vs{KN Sir said n should be 0 for
-all locations} So $\mathcal{I}$ varies with $\sigma_0$.
+\item \emph{Locations are fixed and finite.} $\Loc$ is a fixed finite set and the
+initial store maps every location to zero: $\sigma_0 : \Loc \rightarrow \mathbb{N}$
+with $\forall l \in \Loc.\ \sigma_0(l) = 0$. So $\sigma_0$ is fixed, and
+$\mathcal{I}$ varies only with the program $E_0$.
 \item \emph{Threads are fixed and finite.} $dom(E_0) = \ThId$ is a fixed finite set
 of thread identifiers, and $E_0 : \ThId \rightarrow \Expr$ is the initial program,
 mapping each thread to its starting expression. No thread is ever created or
@@ -464,20 +462,23 @@ holds by construction.
 \label{sec:history}
 
 Throughout, sets are written with capitals --- $E$ (the events of a transaction),
-$H$ (a history), $\mathbf{T}$ (the transactions of a trace). We range over
-transaction identifiers with $t, t_1, t_2, \dots$ \vs{remove $t$ or start with
-$t_0$} and over transactions with
-$T, S$ \vs{What is $S$? The notations $\mathbf{T}$ which represents transactions
-of a trace and $T$ which is a single transaction is confusing. It is difficult to
-read the latter part of this section.} The examples all refer to one running trace,
+$H$ (a history), and the boldface $\mathbf{T}$ (the set of \emph{all} transactions
+of a trace). We range over transaction identifiers with $t_1, t_2, \dots$. A
+\emph{single} transaction is written with a plain capital $T$ (and $S$ when we need
+a second one to compare against, as in arbitration below); $T_{t}$ names the
+transaction whose identifier is $t$. The typographic contrast is deliberate: the
+boldface $\mathbf{T}$ is always the whole set, whereas $T$, $S$, and $T_{t}$ are
+individual transactions drawn from it. The examples all refer to one running trace,
 \[
 \rho \;=\; \bbegin\,@\,t_1 \cdot \getev{l}{0}{t_1} \cdot \tau_1 \cdot \tau_2 \cdot
 \setev{l}{1}{t_1} \cdot \eend\,@\,t_1 \cdot \bbegin\,@\,t_2 \cdot \getev{l}{1}{t_2}
 \cdot \retry\,@\,t_2 .
 \]
 
-\vs{What is $\tau_1$ and $\tau_2$? I think they are administrative steps. 
-Explain the notations during their first use.}
+Here $\tau_1$ and $\tau_2$ are \emph{administrative steps}: internal reductions the
+running transaction takes while evaluating its body (the $\adm$-steps of
+Section~\ref{subsec:admin} --- a $\textsf{let}$-substitution, an arithmetic step, a
+conditional). The Trace definition below makes this precise.
 
 \subsection{Trace}
 \begin{definition}[Trace]
@@ -486,7 +487,7 @@ The \emph{trace} of a run $C_0 \xrightarrow{\ell_1} C_1 \xrightarrow{\ell_2} \cd
 configurations, $\ell_1\,\ell_2\cdots\ell_k$. Each label $\ell$ is either a
 \emph{transition label} --- one of $\bbegin\,@\,t$, $\getev{l}{v}{t}$,
 $\setev{l}{v}{t}$, $\eend\,@\,t$, $\retry\,@\,t$ --- or an \emph{administrative
-step} $\tau_i$ \vs{add reference to the adm redn section}, the label of an internal reduction the transaction takes while
+step} $\tau_i$ (Section~\ref{subsec:admin}), the label of an internal reduction the transaction takes while
 evaluating its body (a $\adm$-step: a $\textsf{let}$-substitution, an arithmetic
 step, a conditional). A run may take \emph{arbitrarily many} administrative steps
 in a row, so they are indexed $\tau_1, \tau_2, \tau_3, \dots$
@@ -501,8 +502,9 @@ take more.
 
 \subsection{Transaction}
 \begin{definition}[Transaction]
-A \emph{transaction} is a pair $T = (E,\po)$. \vs{Here, you can explicitly mention
-that tx IDs of all the events in $E$ are the same.}
+A \emph{transaction} is a pair $T = (E,\po)$. Every event in $E$ carries the
+\emph{same} transaction identifier $t$ --- that shared tag is exactly what groups
+these events into one transaction.
 \begin{itemize}
 \item $E$ is a set of pairs $(\iota, e)$ --- an identifier $\iota$ together with an
 event $e$ tagged with the transaction. An event is one of $\bbegin\,@\,t$,
@@ -515,17 +517,13 @@ $(a,b) \in \po$, it is
   \item \emph{irreflexive}: no event precedes itself, $\neg(a \prec a)$;
   \item \emph{transitive}: $a \prec b$ and $b \prec c$ imply $a \prec c$;
   \item \emph{antisymmetric}: $a \prec b$ and $b \prec a$ imply $a = b$;
+  \item \textbf{totality}: any two distinct events are comparable, $a \prec b \vee b \prec a$.
   \end{itemize}
-and any two distinct events are comparable (which makes it \emph{total}).
-\vs{Add this as a separate property called \textbf{totality} [$a \prec b \vee b \prec a$].}
 \end{itemize}
 \end{definition}
 
 \begin{example}
-Transaction $t_1$ of $\rho$ is $T_{t_1} = (E,\po)$ with
-\vs{Shouldn't it be $\mathbf{T}_{t_1} = (E,\po)$ and not 
-$T_{t_1} = (E,\po)$? That's why I said earlier $\mathbf{T}$ and
-$T$ are confusing.}
+Transaction $t_1$ of $\rho$ is the single transaction $T_{t_1} = (E,\po)$ with
 \[
 E = \{\, (\iota_0, \bbegin\,@\,t_1),\ (\iota_1, \getev{l}{0}{t_1}),\
          (\iota_2, \setev{l}{1}{t_1}),\ (\iota_3, \eend\,@\,t_1) \,\},
@@ -551,10 +549,9 @@ greatest event is an end:
 \max(T)\ \text{is an}\ \eend\,@\,t .
 \]
 Because $\min$ and $\max$ are the extremes of $\po$, this forces $\bbegin\,@\,t$ to
-precede $\eend\,@\,t$ and every event of $T$ to lie between them. We write
-$\mathrm{Committed}$ for the set of committed transactions.
-\vs{Use something like Committed($\mathbf{T}$)) to represent a set of 
-committed transactions from a trace $\mathbf{T}$}.
+precede $\eend\,@\,t$ and every event of $T$ to lie between them. For a trace with
+transaction set $\mathbf{T}$, we write $\mathrm{Committed}(\mathbf{T}) \subseteq
+\mathbf{T}$ for its committed transactions.
 \end{definition}
 
 \begin{example}
@@ -565,13 +562,6 @@ greatest an end, so $T_{t_1}$ is committed.
 
 \subsection{Uncommitted transaction}
 \begin{definition}[Uncommitted transaction]
-\vs{Change the explanation. You should take a single transaction  $T = (E,\po)$
-like in committed transaction defn. and say when it is called uncommitted. The below explanation
-tells how to extract a set of uncommitted transactions from a trace $\mathbf{T}$.\\
-Define uncommitted transaction as a transaction that does not have a matching end/
-max(T) is not an end.\\ After this, you can say Uncommitted($\mathbf{T}$) = 
-$\mathbf{T} \setminus \mathrm{Committed}(\mathbf{T})$}.
-
 A transaction $T=(E,\po)$ is \emph{uncommitted} if its maximal event
 $\max(T)$ is not an $\eend\,@\,t$ event. Equivalently, $T$ does not have
 a matching end event (e.g., its maximal event is a $\retry\,@\,t$, or it
@@ -587,7 +577,7 @@ For a trace $\mathbf{T}$, the set of uncommitted transactions is
 
 \begin{example}
 For $t_2$ above, $\max(T_{t_2})$ is $\retry\,@\,t_2$, not an $\eend\,@\,t_2$, so
-$T_{t_2} \in \mathbf{T} \setminus \mathrm{Committed}$ --- uncommitted.
+$T_{t_2} \in \mathrm{Uncommitted}(\mathbf{T}) = \mathbf{T} \setminus \mathrm{Committed}(\mathbf{T})$.
 \end{example}
 
 \subsection{Arbitration}
@@ -629,7 +619,6 @@ uncommitted.
 \end{example}
 
 
-\vs{You can use the below format to denote administrative reductions}.
 \subsection{Local (pure) reductions}
 \label{subsec:local}
 Addition, \code{let}, and \code{if} never touch the shared store or
