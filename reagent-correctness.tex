@@ -63,14 +63,17 @@
 \newcommand{\HEvent}{\mathit{HEvent}}
 \newcommand{\WEvent}{\mathit{WEvent}}
 \newcommand{\REvent}{\mathit{REvent}}
-\newcommand{\rdev}[2]{\mathsf{read}(#1,#2)}
-\newcommand{\wrev}[2]{\mathsf{write}(#1,#2)}
+\newcommand{\rdev}[2]{\mathsf{get}(#1,#2)}   % our "read" is a get(x,n)
+\newcommand{\wrev}[2]{\mathsf{set}(#1,#2)}   % our "write" is a set(x,n)
 \newcommand{\retryev}{\rho}                 % retry event marker
 \newcommand{\po}{\mathit{po}}
 \newcommand{\maxpo}{\mathrm{max}_{\po}}
+\newcommand{\minpo}{\mathrm{min}_{\po}}
 \newcommand{\att}{\mathit{att}}
-\newcommand{\anyop}[2]{\mathord{\_}(#1,#2)} % read(x,n) or write(x,n)
+\newcommand{\anyop}[2]{\mathord{\_}(#1,#2)} % get(x,n) or set(x,n)
 \newcommand{\pob}{\xrightarrow{\po}}        % program-order edge
+\newcommand{\fst}{\mathrm{fst}}             % first projection of a history pair
+\newcommand{\snd}{\mathrm{snd}}             % second projection of a history pair
 \newcommand{\vs}[1]{\textcolor{blue}{\textbf{[VS:} #1\textbf{]}}}
 %\renewcommand{\vs}[1]{}
 
@@ -533,38 +536,49 @@ ordered $(\iota_0,\_) \prec (\iota_1,\_) \prec (\iota_2,\_) \prec (\iota_3,\_)$ 
 begin, then the read, then the write, then end.
 \end{example}
 
+
+
 \subsection{Committed transaction}
-Since $\po$ totally orders $E$, a transaction $T = (E,\po)$ has a unique
-$\po$-least and a unique $\po$-greatest event. This gives two functions on
-transactions,
+For a total order $\po$ and a set of events $E$, we define
 \[
-\min(T) = \text{the } \po\text{-least event of } E, \qquad
-\max(T) = \text{the } \po\text{-greatest event of } E .
+\operatorname{max}_{\po}(E) =
+\begin{cases}
+e, & \text{if } e \in E \text{ and } \forall e' \in E.\; e = e' \lor (e',e) \in \po,\\[0.8ex]
+\text{undefined}, & \text{if } E = \emptyset.
+\end{cases}
 \]
 
-\begin{definition}[Committed transaction] 
+\[
+\operatorname{min}_{\po}(E) =
+\begin{cases}
+e, & \text{if } e \in E \text{ and } \forall e' \in E.\; e = e' \lor (e,e') \in \po,\\[0.8ex]
+\text{undefined}, & \text{if } E = \emptyset.
+\end{cases}
+\]
+
+\begin{definition}[Committed transaction]
 A transaction $T$ is \emph{committed} when its least event is a begin and its
 greatest event is an end:
 \[
-\min(T)\ \text{is a}\ \bbegin\,@\,t \qquad\text{and}\qquad
-\max(T)\ \text{is an}\ \eend\,@\,t .
+\operatorname{min}_{po}(fst(T))\ \text{is a}\ \bbegin\,@\,t \qquad\text{and}\qquad
+\operatorname{max}_{po}(fst(T))\ \text{is an}\ \eend\,@\,t .
 \]
-Because $\min$ and $\max$ are the extremes of $\po$, this forces $\bbegin\,@\,t$ to
+Because $\min_{po}$ and $\max_{po}$ are the extremes of $\po$, this forces $\bbegin\,@\,t$ to
 precede $\eend\,@\,t$ and every event of $T$ to lie between them. For a trace with
 transaction set $\mathbf{T}$, we write $\mathrm{Committed}(\mathbf{T}) \subseteq
 \mathbf{T}$ for its committed transactions.
 \end{definition}
 
 \begin{example}
-For $t_1$ above, $\min(T_{t_1}) = (\iota_0, \bbegin\,@\,t_1)$ and
-$\max(T_{t_1}) = (\iota_3, \eend\,@\,t_1)$: the least event is a begin and the
+For $t_1$ above, $\operatorname{min}_{po}(fst(T_{t_1})) = (\iota_0, \bbegin\,@\,t_1)$ and
+$\operatorname{max}_{po}(fst(T_{t_1})) = (\iota_3, \eend\,@\,t_1)$: the least event is a begin and the
 greatest an end, so $T_{t_1}$ is committed.
 \end{example}
 
 \subsection{Uncommitted transaction}
 \begin{definition}[Uncommitted transaction]
 A transaction $T=(E,\po)$ is \emph{uncommitted} if its maximal event
-$\max(T)$ is not an $\eend\,@\,t$ event. Equivalently, $T$ does not have
+$\operatorname{max}_{po}(fst(T))$ is not an $\eend\,@\,t$ event. Equivalently, $T$ does not have
 a matching end event (e.g., its maximal event is a $\retry\,@\,t$, or it
 has no end event at all).
 
@@ -582,7 +596,9 @@ For $t_2$ above, $\max(T_{t_2})$ is $\retry\,@\,t_2$, not an $\eend\,@\,t_2$, so
 $T_{t_2} \in \mathrm{Uncommitted}(\mathbf{T}) = \mathbf{T} \setminus \mathrm{Committed}(\mathbf{T})$.
 \end{example}
 
+
 \subsection{Arbitration}
+\label{subsec:arbitration}
 \begin{definition}[Arbitration $\mathrm{AR}$]
 Let $\mathbf{T}$ be the set of transactions of a trace. \emph{Arbitration} is a
 binary relation $\mathrm{AR} \subseteq \mathbf{T} \times \mathbf{T}$ that is a total
@@ -603,18 +619,18 @@ A \emph{history} is a pair
 \[
 H \;=\; (\mathbf{T},\ \mathrm{AR}),
 \]
-where $\mathbf{T} = \{\, T_1, \dots, T_n \,\} = \{\, (E_1,\po_1), \dots, (E_n,\po_n) \,\}$
+whose first component $\fst(H) = \mathbf{T} = \{\, T_1, \dots, T_n \,\} = \{\, (E_1,\po_1), \dots, (E_n,\po_n) \,\}$
 is the (finite) set of all transactions of a trace --- committed and uncommitted ---
-and $\mathrm{AR} \subseteq \mathbf{T} \times \mathbf{T}$ is the arbitration total
-order on them.
+and whose second component $\snd(H) = \mathrm{AR} \subseteq \mathbf{T} \times \mathbf{T}$
+is the arbitration total order on them (Section~\ref{subsec:arbitration}).
 \end{definition}
 
 \begin{example}
 The trace $\tau$ yields the history
 \[
 H = (\mathbf{T},\ \mathrm{AR}), \qquad
-\mathbf{T} = \{\, T_{t_1},\ T_{t_2} \,\}, \qquad
-\mathrm{AR} = \{\, (T_{t_1}, T_{t_2}) \,\},
+\mathbf{T} = \fst(H) = \{\, T_{t_1},\ T_{t_2} \,\}, \qquad
+\mathrm{AR} = \snd(H) = \{\, (T_{t_1}, T_{t_2}) \,\},
 \]
 i.e.\ $T_{t_1} <_{\mathrm{AR}} T_{t_2}$, with $T_{t_1}$ committed and $T_{t_2}$
 uncommitted.
@@ -673,5 +689,131 @@ current expression's redex is a pure one:
 \(\hat{E}\) untouched. Together, \textsc{Local} plus the five rules of
 Figure~\ref{fig:semantics} give a reduction for every production of the
 expression grammar.
+
+%% =====================================================================
+\section{Consistency}
+\label{sec:consistency}
+
+The declarative model of Section~\ref{sec:history} lets us say when a history
+$H = (\mathbf{T}, \mathrm{AR})$ is \emph{consistent}, following Cerone et al. The
+axioms below range over its transactions $\fst(H) = \mathbf{T}$, using its
+arbitration order $\snd(H) = \mathrm{AR}$. Two axioms do the work: \textsc{Int}
+constrains a get against the sets of its \emph{own} transaction, and
+\textsc{Ext} constrains a get against the sets of \emph{other}, committed,
+transactions.
+
+\subsection{Internal consistency}
+\label{sec:int}
+
+For a history $H = (\mathbf{T}, \mathrm{AR})$, Cerone et al.'s internal-consistency
+axiom is
+\[
+\forall (E, \po) \in \fst(H).\ \forall e \in E.\ \forall x, n.\quad
+\bigl(e = (\_,\, \rdev{x}{n}) \,\wedge\, \po^{-1}(e) \cap \HEvent_x \neq \emptyset\bigr)
+\implies
+\maxpo\bigl(\po^{-1}(e) \cap \HEvent_x\bigr) = (\_,\, \anyop{x}{n}),
+\tag{\textsc{Int}}
+\]
+where $\HEvent_x$ is the set of get and set events on $x$, and
+$(\_,\anyop{x}{n})$ is a get or set of $n$ on $x$. It ranges over \emph{every}
+transaction of the trace, committed or not: within one transaction a get of $x$
+must return the value of the $\po$-latest earlier access to $x$.
+
+\begin{example}[$\textsc{Int}$ needs no commit]
+Neither transaction below commits, yet $\textsc{Int}$ still pins both gets. Take
+the trace
+\[
+\tau:\quad \bbegin\,@\,t_1 \cdot \setev{x}{2}{t_1} \cdot \getev{x}{2}{t_1} \cdot \retry\,@\,t_1
+      \cdot \bbegin\,@\,t_2 \cdot \setev{x}{5}{t_2} \cdot \getev{x}{5}{t_2}
+\]
+($t_1$ aborts, $t_2$ is left pending). For $\getev{x}{2}{t_1}$,
+$\po^{-1}(e)\cap\HEvent_x = \{\setev{x}{2}{t_1}\}$, whose $\maxpo$ is a set of $2$
+on $x$, so the get is forced to $2$; likewise $\getev{x}{5}{t_2}$ is forced to
+$5$. Committedness never entered.
+\end{example}
+
+\begin{example}[external get: $\textsc{Int}$ vacuous]
+When a get is a transaction's first access to $x$, $\textsc{Int}$ is silent. In
+\[
+\tau:\quad \bbegin\,@\,t_1 \cdot \setev{x}{7}{t_1} \cdot \eend\,@\,t_1
+      \cdot \bbegin\,@\,t_2 \cdot \getev{x}{7}{t_2}
+\]
+($t_1$ committed), the get $\getev{x}{7}{t_2}$ has
+$\po^{-1}(e)\cap\HEvent_x = \emptyset$, so the premise fails and $\textsc{Int}$
+holds \emph{vacuously}.
+\end{example}
+
+\subsection{External consistency}
+\label{sec:ext}
+
+Internal consistency constrains a get only when the same transaction has already
+touched that location --- when $\po^{-1}(e) \cap \HEvent_x \neq \emptyset$. Every
+other get is one whose value \emph{cannot} come from within its own transaction: a
+get of $x$ not preceded, in its transaction, by any access to $x$. We call such a
+get \emph{external}, because the value it returns must come from \emph{another}
+transaction. External gets are exactly the ones $\textsc{Int}$ leaves free --- its
+premise is vacuous, as in the last example --- and external consistency is what
+fixes them.
+
+Following Cerone, we summarise a transaction's effect on a location $x$ with two
+judgements. $T \vdash \mathsf{Set}\ x : n$ holds when $T$ sets $x$ and its
+$\po$-last set of $x$ has value $n$ --- the value $T$ leaves in $x$. And
+$T \vdash \mathsf{Get}\ x : n$ holds when $T$'s $\po$-first access to $x$ is a get
+returning $n$ --- precisely an \emph{external} get of $x$ by $T$.
+
+The value such a get may return comes from the committed transactions that took
+effect before it, in the arbitration order $\mathrm{AR}$ of
+Section~\ref{subsec:arbitration}. Let $\mathrm{AR}^{-1}(T) = \{\, S \mid S <_{\mathrm{AR}} T \,\}$
+be the transactions arbitrated before $T$. Since $\mathrm{AR}$ orders \emph{all}
+transactions --- committed and aborted alike --- but an aborted set must never be
+observed, the candidate setters $S$ have to be restricted to \emph{committed}
+transactions. We make that restriction explicit in the axiom below, as the
+$S \in \mathrm{Committed}(\fst(H))$ conjunct of the setter set $W_x$.
+
+We do \emph{not} model a separate visibility relation. $\mathrm{VIS}$ would record
+that one transaction can \emph{see} another's effects --- a distinct notion only
+under weaker isolation, where serializability fails, visibility is strictly weaker
+than arbitration ($\mathrm{VIS} \subsetneq \mathrm{AR}$), and $\mathrm{VIS}$ must be
+given on its own. Here there is no such gap: every committed transaction's updates
+are available to every $\mathrm{AR}$-later transaction, so arbitration alone
+suffices.
+
+External consistency then says: an external get returns the value set by the
+$\mathrm{AR}$-latest committed setter of that location, or the initial value $0$ if
+there is none:
+\[
+\begin{aligned}
+&\forall T \in \fst(H).\ \forall x, n.\quad T \vdash \mathsf{Get}\ x : n \implies {}\\
+&\quad \bigl(\mathrm{AR}^{-1}(T) \cap W_x = \emptyset \,\wedge\, n = 0\bigr)\ \vee\
+       \mathrm{max}_{\mathrm{AR}}\bigl(\mathrm{AR}^{-1}(T) \cap W_x\bigr) \vdash \mathsf{Set}\ x : n,\\[2pt]
+&\text{where}\quad W_x \;=\; \{\, S \mid S \in \mathrm{Committed}(\fst(H))\ \wedge\ S \vdash \mathsf{Set}\ x : \_ \,\}.
+\end{aligned}
+\tag{\textsc{Ext}}
+\]
+
+\begin{example}[committed setter is visible]
+$t_1$ commits its set, so $\textsc{Ext}$ pins $t_2$'s get to it. In
+\[
+\tau:\quad \bbegin\,@\,t_1 \cdot \setev{x}{7}{t_1} \cdot \eend\,@\,t_1
+      \cdot \bbegin\,@\,t_2 \cdot \getev{x}{7}{t_2}
+\]
+$\eend\,@\,t_1$ precedes $\bbegin\,@\,t_2$, so $T_{t_1} <_{\mathrm{AR}} T_{t_2}$, and
+$T_{t_1}$ is committed with $T_{t_1} \vdash \mathsf{Set}\ x : 7$; thus
+$T_{t_1} \in \mathrm{AR}^{-1}(T_{t_2}) \cap W_x$ and
+$\mathrm{max}_{\mathrm{AR}}\bigl(\mathrm{AR}^{-1}(T_{t_2}) \cap W_x\bigr) = T_{t_1}$,
+so $\textsc{Ext}$ forces the get to $7$.
+\end{example}
+
+\begin{example}[no committed setter: get is $0$]
+$t_1$ aborts, so its set is uncommitted; $\textsc{Ext}$ still holds --- with the
+initial value. In
+\[
+\tau:\quad \bbegin\,@\,t_1 \cdot \setev{x}{2}{t_1} \cdot \retry\,@\,t_1
+      \cdot \bbegin\,@\,t_2 \cdot \getev{x}{0}{t_2}
+\]
+we have $T_{t_1} <_{\mathrm{AR}} T_{t_2}$, but $T_{t_1}$ is \emph{not} committed, so
+$T_{t_1} \notin W_x$; hence $\mathrm{AR}^{-1}(T_{t_2}) \cap W_x = \emptyset$, and
+$\textsc{Ext}$ forces the get to $0$ --- matching the rolled-back store.
+\end{example}
 
 \end{document}
